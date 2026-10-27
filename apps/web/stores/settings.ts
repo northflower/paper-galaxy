@@ -10,6 +10,14 @@ export interface LlmSettings {
   fastModel: string;
   visionModel: string;
   disableThinking: boolean;
+  /** 当前配置是否通过了“测试连接”；修改任一字段后重置 */
+  verified?: boolean;
+}
+
+/** 服务端是否配置了默认模型（部署公共实例时） */
+export interface ServerStatus {
+  chat: boolean;
+  vision: boolean;
 }
 
 const STORAGE_KEY = "pg-llm-settings";
@@ -29,16 +37,30 @@ interface SettingsState {
   open: boolean;
   settings: LlmSettings;
   hydrated: boolean;
+  server: ServerStatus | null;
+  fetchServer: () => void;
   setOpen: (open: boolean) => void;
   hydrate: () => void;
   save: (s: LlmSettings) => void;
   clear: () => void;
 }
 
+let serverRequest: Promise<void> | null = null;
+
 export const useSettings = create<SettingsState>((set) => ({
   open: false,
   settings: EMPTY,
   hydrated: false,
+  server: null,
+  // 多个组件同时调用时只请求一次
+  fetchServer: () => {
+    serverRequest ??= fetch("/api/check")
+      .then((r) => r.json())
+      .then((d: ServerStatus) => set({ server: { chat: !!d.chat, vision: !!d.vision } }))
+      .catch(() => {
+        serverRequest = null;
+      });
+  },
   setOpen: (open) => set({ open }),
   hydrate: () => set({ settings: load(), hydrated: true }),
   save: (settings) => {

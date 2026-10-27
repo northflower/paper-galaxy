@@ -5,6 +5,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { StarChartBackground } from "@/components/StarChartBackground";
 import { SearchBox, SearchResults, useLibrarySearch } from "@/components/home/LibrarySearch";
+import { ModelStatus } from "@/components/home/ModelStatus";
 import { Brand } from "@/components/Logo";
 import { SettingsButton } from "@/components/SettingsDialog";
 import { UploadDropzone } from "@/components/UploadDropzone";
@@ -44,6 +45,7 @@ export default function HomePage() {
         <div className="flex-1" />
 
         <div className="rise mx-auto w-full max-w-2xl px-5 pb-10" style={{ animationDelay: "120ms" }}>
+          <ModelStatus />
           <UploadDropzone />
           {papers && papers.length > 0 && (
             <a

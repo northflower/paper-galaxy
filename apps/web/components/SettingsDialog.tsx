@@ -8,16 +8,12 @@ import { useSettings, type LlmSettings } from "@/stores/settings";
 
 /** 顶栏的“模型设置”按钮；未配置任何模型时带提示点 */
 export function SettingsButton({ className }: { className?: string }) {
-  const { settings, setOpen, hydrate, hydrated } = useSettings();
-  const [server, setServer] = useState<boolean | null>(null);
+  const { settings, setOpen, hydrate, hydrated, server, fetchServer } = useSettings();
   useEffect(() => {
     if (!hydrated) hydrate();
-    fetch("/api/check")
-      .then((r) => r.json())
-      .then((d) => setServer(!!d.chat))
-      .catch(() => setServer(null));
-  }, [hydrated, hydrate]);
-  const missing = hydrated && server === false && !settings.apiKey;
+    fetchServer();
+  }, [hydrated, hydrate, fetchServer]);
+  const missing = hydrated && server?.chat === false && !settings.apiKey;
   return (
     <button
       aria-label="模型设置"
@@ -36,11 +32,10 @@ export function SettingsButton({ className }: { className?: string }) {
  * 配置只保存在本机浏览器，随 AI 请求发给本站服务端转发给模型服务，服务端不保存。
  */
 export function SettingsDialog() {
-  const { open, setOpen, settings, save, clear, hydrate, hydrated } = useSettings();
+  const { open, setOpen, settings, save, clear, hydrate, hydrated, server, fetchServer } = useSettings();
   const [draft, setDraft] = useState<LlmSettings>(settings);
   const [showKey, setShowKey] = useState(false);
   const [test, setTest] = useState<{ state: "idle" | "running" | "ok" | "error"; message?: string }>({ state: "idle" });
-  const [server, setServer] = useState<{ chat: boolean; vision: boolean } | null>(null);
 
   useEffect(() => {
     if (!hydrated) hydrate();
@@ -50,19 +45,16 @@ export function SettingsDialog() {
     if (!open) return;
     setDraft(settings);
     setTest({ state: "idle" });
-    fetch("/api/check")
-      .then((r) => r.json())
-      .then(setServer)
-      .catch(() => setServer(null));
+    fetchServer();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, settings, setOpen]);
+  }, [open, settings, setOpen, fetchServer]);
 
   if (!open) return null;
 
   const set = <K extends keyof LlmSettings>(k: K, v: LlmSettings[K]) => {
-    setDraft((d) => ({ ...d, [k]: v }));
+    setDraft((d) => ({ ...d, [k]: v, verified: false }));
     setTest({ state: "idle" });
   };
 
@@ -72,6 +64,8 @@ export function SettingsDialog() {
     setTest({ state: "running" });
     try {
       const res = await postJson<{ reply: string }>("/api/check", {});
+      save({ ...draft, verified: true });
+      setDraft((d) => ({ ...d, verified: true }));
       setTest({ state: "ok", message: `连接成功，模型回复：${res.reply || "（空）"}` });
     } catch (err) {
       setTest({ state: "error", message: (err as Error).message });

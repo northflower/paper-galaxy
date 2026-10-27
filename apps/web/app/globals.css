@@ -226,6 +226,84 @@ body {
   color: #fff;
 }
 
+/* 首页“连接模型”卡片：极光色描边沿边框缓慢流动，与首页星云配色一致 */
+@property --aurora-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes aurora-spin {
+  to {
+    --aurora-angle: 360deg;
+  }
+}
+.aurora-border {
+  position: relative;
+  isolation: isolate;
+}
+.aurora-border::before,
+.aurora-border::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  animation: aurora-spin 6s linear infinite;
+}
+.aurora-border::before {
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--aurora-angle),
+    rgba(56, 242, 204, 0.75),
+    rgba(110, 170, 255, 0.75),
+    rgba(170, 130, 255, 0.85),
+    rgba(255, 120, 190, 0.75),
+    rgba(255, 184, 92, 0.75),
+    rgba(56, 242, 204, 0.75)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* 外圈柔光 */
+.aurora-border::after {
+  inset: -14px;
+  z-index: -2;
+  background: conic-gradient(
+    from var(--aurora-angle),
+    rgba(56, 242, 204, 0.14),
+    rgba(170, 130, 255, 0.18),
+    rgba(255, 120, 190, 0.12),
+    rgba(56, 242, 204, 0.14)
+  );
+  filter: blur(22px);
+}
+
+/* 状态点外的涟漪：一圈圈向外扩散 */
+@keyframes ripple {
+  from {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.ripple::before,
+.ripple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  animation: ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  pointer-events: none;
+}
+.ripple::after {
+  animation-delay: 1.2s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
