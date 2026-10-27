@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+apps/web/public/pdf.worker.min.mjs
+apps/web/public/models/
+*.tsbuildinfo
+samples/*.pdf
