@@ -28,7 +28,9 @@ interface Props {
 
 /** 段落在某一页上的一块矩形；boxIndex 用于把译文按面积分配到跨栏、跨页的各块 */
 interface Mark {
+  /** 同一段落被拆成多块（过长段落按句切分）时共用同一区域，group 为全部片段，chunk 为首个片段 */
   chunk: Chunk;
+  group: Chunk[];
   box: ChunkBox;
   boxIndex: number;
 }
@@ -62,18 +64,34 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, transla
   }, [paperId, file]);
 
   const marksByPage = useMemo(() => {
-    const marks = new Map<number, Mark[]>();
+    // 位置完全相同的片段合并为一组，避免多个片段的译文叠在同一个框里互相覆盖
+    const groups = new Map<string, Chunk[]>();
     for (const chunk of chunks) {
-      chunk.boxes?.forEach((box, boxIndex) => {
+      if (!chunk.boxes?.length) continue;
+      const key = JSON.stringify(chunk.boxes);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(chunk);
+    }
+    const marks = new Map<number, Mark[]>();
+    for (const group of groups.values()) {
+      const chunk = group[0];
+      chunk.boxes!.forEach((box, boxIndex) => {
         if (!marks.has(box.page)) marks.set(box.page, []);
-        marks.get(box.page)!.push({ chunk, box, boxIndex });
+        marks.get(box.page)!.push({ chunk, group, box, boxIndex });
       });
     }
     return marks;
   }, [chunks]);
 
   // 点击任一侧的段落：两侧同时高亮
-  const pick = useCallback((ref: string) => focus([ref], { scroll: false }), [focus]);
+  // 再次点击已选中的段落或点击空白处，取消选中
+  const pick = useCallback(
+    (refs: string[] | null) => {
+      if (!refs || refs.some((r) => activeSet.has(r))) focus([], { scroll: false });
+      else focus(refs, { scroll: false });
+    },
+    [focus, activeSet],
+  );
 
   if (error) return <p className="py-20 text-center text-sm text-red-300">PDF 加载失败：{error}</p>;
   if (!handle) {
@@ -130,7 +148,7 @@ interface PageProps {
   paper: (typeof PAPER)["day"] | (typeof PAPER)["night"];
   variant: "original" | "translated";
   translator?: Translator;
-  onPick: (ref: string) => void;
+  onPick: (refs: string[] | null) => void;
   onHover: (ref: string | null) => void;
 }
 
@@ -188,7 +206,7 @@ const PdfPage = memo(function PdfPage({
   const request = translator?.request;
   useEffect(() => {
     if (!translated || !visible || !request) return;
-    for (const m of marks) if (translatable(m.chunk)) request(m.chunk);
+    for (const m of marks) if (translatable(m.chunk)) m.group.forEach(request);
   }, [translated, visible, marks, request]);
 
   useEffect(() => {
@@ -244,12 +262,17 @@ const PdfPage = memo(function PdfPage({
 
   // 在原文页上点击段落（且没有在选文字）时，定位该段
   const pickAt = (e: React.PointerEvent) => {
-    if (translated || window.getSelection()?.toString().trim()) return;
+    if (window.getSelection()?.toString().trim()) return;
+    // 译文页：点在译文块上由块自己处理，点在空白处取消选中
+    if (translated) {
+      if (!(e.target as HTMLElement).closest("[data-tr]")) onPick(null);
+      return;
+    }
     const rect = wrapRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     const hit = marks.find(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h);
-    if (hit) onPick(hit.chunk.ref);
+    onPick(hit ? hit.group.map((c) => c.ref) : null);
   };
 
   const seen = new Set<string>();
@@ -266,7 +289,7 @@ const PdfPage = memo(function PdfPage({
         {scale > 0 &&
           marks.map((m, i) => {
             const ref = m.chunk.ref;
-            const on = activeSet.has(ref);
+            const on = m.group.some((c) => activeSet.has(c.ref));
             const hover = hovered === ref;
             // 用百分比定位：页面尺寸变化时叠加层与画布始终对齐
             const style = {
@@ -282,6 +305,12 @@ const PdfPage = memo(function PdfPage({
                 : "";
             // 原文页上每个段落的首块放一个滚动锚点，供脉络、引用、检索结果跳转
             const anchor = !translated && !seen.has(ref) && seen.add(ref);
+            // 同组其余片段也需要锚点（问答引用可能指向任一片段）
+            const extraAnchors = anchor
+              ? m.group.slice(1).map((c) => (
+                  <div key={c.ref} id={`anchor-${c.ref}`} className="pointer-events-none absolute scroll-mt-28" style={style} />
+                ))
+              : null;
 
             if (translated && translatable(m.chunk) && translator) {
               return (
@@ -299,13 +328,15 @@ const PdfPage = memo(function PdfPage({
               );
             }
             return (
-              <div
-                key={`${ref}-${i}`}
-                id={anchor ? `anchor-${ref}` : undefined}
-                onMouseEnter={() => onHover(ref)}
-                className={clsx("absolute scroll-mt-28 rounded-[2px] transition-colors duration-300", ring, translated && "pointer-events-auto")}
-                style={{ ...style, pointerEvents: translated ? undefined : "none" }}
-              />
+              <span key={`${ref}-${i}`} className="contents">
+                <div
+                  id={anchor ? `anchor-${ref}` : undefined}
+                  onMouseEnter={() => onHover(ref)}
+                  className={clsx("absolute scroll-mt-28 rounded-[2px] transition-colors duration-300", ring)}
+                  style={{ ...style, pointerEvents: translated ? undefined : "none" }}
+                />
+                {extraAnchors}
+              </span>
             );
           })}
 
@@ -439,11 +470,14 @@ function TranslatedBox({
   translator: Translator;
   className: string;
   onHover: (ref: string | null) => void;
-  onPick: (ref: string) => void;
+  onPick: (refs: string[] | null) => void;
 }) {
-  const { chunk, boxIndex } = mark;
-  const full = chunk.translation ?? translator.streaming[chunk.id];
-  const failed = translator.failed[chunk.id];
+  const { chunk, group, boxIndex } = mark;
+  // 拼接同组所有片段的译文（已完成的 + 正在流式生成的）
+  const parts = group.map((c) => c.translation ?? translator.streaming[c.id] ?? "");
+  const full = parts.join("");
+  const pending = group.some((c) => !c.translation);
+  const failed = group.map((c) => translator.failed[c.id]).find(Boolean);
   const text = full ? sliceForBox(full, chunk.boxes!, boxIndex) : "";
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -456,7 +490,7 @@ function TranslatedBox({
     // 文字没变、只是缩放时跳过（比例不变）；缩放幅度很大时重新拟合一次，修正换行误差
     const last = sized.current;
     if (last && last.text === text && Math.abs(last.scale - scale) / last.scale < 0.35) return;
-    let lo = 2;
+    let lo = 4;
     let hi = 10.5;
     for (let k = 0; k < 9; k++) {
       const mid = (lo + hi) / 2;
@@ -471,15 +505,16 @@ function TranslatedBox({
   return (
     <div
       id={boxIndex === 0 ? `tr-${chunk.ref}` : undefined}
+      data-tr
       onMouseEnter={() => onHover(chunk.ref)}
-      onClick={() => onPick(chunk.ref)}
+      onClick={() => onPick(group.map((c) => c.ref))}
       className={clsx("absolute cursor-pointer overflow-hidden rounded-[2px] transition-colors duration-300", className)}
       style={{ ...style, background: paper.bg }}
     >
       {text ? (
         <div
           ref={textRef}
-          className={clsx("h-full w-full text-justify", !chunk.translation && "caret")}
+          className={clsx("h-full w-full text-justify", pending && "caret")}
           style={{ color: paper.text, lineHeight: 1.42, fontFamily: "var(--font-sans)" }}
         >
           {text}
@@ -488,7 +523,7 @@ function TranslatedBox({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            translator.request(chunk);
+            group.forEach(translator.request);
           }}
           className="h-full w-full text-[11px] text-red-400 hover:underline"
         >

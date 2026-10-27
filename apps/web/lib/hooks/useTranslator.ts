@@ -5,7 +5,8 @@ import { db } from "../db";
 import { postStream, readTextStream } from "../stream";
 import type { Chunk, GlossaryTerm } from "../types";
 
-const CONCURRENCY = 3;
+// 并发数：翻译接口单段约 3 秒，6 路并发可在一两秒内铺满一屏
+const CONCURRENCY = 6;
 
 /** 只把在本段出现过的术语注入 Prompt：既保证译名一致，又控制 token 开销 */
 export function termsFor(text: string, glossary: GlossaryTerm[]) {
@@ -30,7 +31,8 @@ export function useTranslator(glossary: GlossaryTerm[] | undefined, ready: boole
 
   const pump = useCallback(() => {
     while (readyRef.current && active.current < CONCURRENCY && queue.current.length) {
-      const chunk = queue.current.shift()!;
+      // 后进先出：最新进入视野的段落（用户正在看的）优先翻译
+      const chunk = queue.current.pop()!;
       active.current++;
       void (async () => {
         try {

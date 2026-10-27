@@ -120,6 +120,13 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const refMap = useMemo(() => new Map((chunks ?? []).map((c) => [c.ref, c])), [chunks]);
   const activeSet = useMemo(() => new Set(activeRefs), [activeRefs]);
 
+  // Esc 取消段落选中
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && focus([], { scroll: false });
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focus]);
+
   // 框选模式下按 Esc 退出
   useEffect(() => {
     if (!regionMode) return;
