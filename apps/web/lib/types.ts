@@ -60,6 +60,15 @@ export type QueryPlan = z.infer<typeof queryPlanSchema>;
 
 export type ChunkKind = "title" | "heading" | "paragraph" | "reference";
 
+/** 段落在 PDF 页面上的位置：左上角为原点，单位为 PDF 点（scale = 1） */
+export interface ChunkBox {
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Chunk {
   /** 主键：`${paperId}_${order}` */
   id: string;
@@ -73,6 +82,8 @@ export interface Chunk {
   text: string;
   translation?: string;
   embedding?: number[];
+  /** 旧版本解析的论文没有该字段，打开时从原 PDF 补算 */
+  boxes?: ChunkBox[];
 }
 
 export type JobStatus = "idle" | "running" | "done" | "error";

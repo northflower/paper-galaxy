@@ -1,4 +1,4 @@
-import type { Chunk, ChunkKind } from "../types";
+import type { Chunk, ChunkBox, ChunkKind } from "../types";
 
 /** pdf.js 文本项中解析需要的字段 */
 interface RawItem {
@@ -13,7 +13,14 @@ interface Line {
   text: string;
   x: number;
   y: number;
+  width: number;
   size: number;
+}
+
+interface PageLines {
+  lines: Line[];
+  width: number;
+  height: number;
 }
 
 export interface ParsedPdf {
@@ -31,7 +38,7 @@ const NUMBERED_HEADING = /^((\d+(\.\d+){0,3})\.?|[IVX]{1,5}\.|[A-H](\.\d+){0,3}\
 const CONTENTS = /^(table of )?contents$/i;
 const REFERENCES = /^(\d+\.?\s*)?(references|bibliography)$/i;
 
-async function loadPdfjs() {
+export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
   // worker 由 postinstall 脚本复制到 public 目录
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -43,7 +50,7 @@ export async function parsePdf(file: Blob, onProgress?: (page: number, total: nu
   const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
 
-  const pages: { lines: Line[]; width: number }[] = [];
+  const pages: PageLines[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const viewport = page.getViewport({ scale: 1 });
@@ -54,7 +61,7 @@ export async function parsePdf(file: Blob, onProgress?: (page: number, total: nu
       const [a, b, , , e, f] = it.transform as number[];
       items.push({ str: it.str, x: e, y: f, width: it.width, size: Math.hypot(a, b) || it.height });
     }
-    pages.push({ lines: orderLines(items, viewport.width), width: viewport.width });
+    pages.push({ lines: orderLines(items, viewport.width), width: viewport.width, height: viewport.height });
     onProgress?.(p, doc.numPages);
   }
 
@@ -118,7 +125,7 @@ function groupLines(items: RawItem[]): Line[] {
       text += p.str;
       end = p.x + p.width;
     }
-    return { text: text.replace(/\s+/g, " ").trim(), x: parts[0].x, y: l.y, size: l.size };
+    return { text: text.replace(/\s+/g, " ").trim(), x: parts[0].x, y: l.y, width: end - parts[0].x, size: l.size };
   });
 }
 
@@ -154,24 +161,28 @@ function isHeading(line: Line, bodySize: number) {
 }
 
 /** 行 → 段落：依据行距、缩进、句末标点切分，并合并连字符断词 */
-function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string): ParsedPdf["chunks"] {
+function buildChunks(pages: PageLines[], bodySize: number, title: string): ParsedPdf["chunks"] {
   const chunks: ParsedPdf["chunks"] = [];
   let section = "";
   let inReferences = false;
-  let buf: string[] = [];
-  let bufPage = 1;
+  // 缓存当前段落的行及其页码，用于拼接文本和计算段落在页面上的位置
+  let buf: { line: Line; page: number }[] = [];
 
-  const push = (kind: ChunkKind, text: string, page: number) => {
+  const push = (kind: ChunkKind, text: string, page: number, boxes: ChunkBox[]) => {
     const clean = text.replace(/\s+/g, " ").trim();
     if (clean.length < 2) return;
+    // 过长段落拆分后，各片段共用整段的位置
     for (const piece of kind === "paragraph" || kind === "reference" ? splitLong(clean) : [clean]) {
       const order = chunks.length;
-      chunks.push({ ref: `c${order}`, order, page, section, kind, text: piece });
+      chunks.push({ ref: `c${order}`, order, page, section, kind, text: piece, boxes });
     }
   };
   const flush = () => {
-    const text = joinLines(buf);
-    if (buf.length && (inReferences || !isFigureNoise(text))) push(inReferences ? "reference" : "paragraph", text, bufPage);
+    if (!buf.length) return;
+    const text = joinLines(buf.map((b) => b.line.text));
+    if (inReferences || !isFigureNoise(text)) {
+      push(inReferences ? "reference" : "paragraph", text, buf[0].page, lineBoxes(buf, pages));
+    }
     buf = [];
   };
 
@@ -198,7 +209,7 @@ function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string
         section = line.text;
         // 参考文献之后再出现标题，说明进入了附录
         inReferences = REFERENCES.test(line.text);
-        push("heading", line.text, pageNo);
+        push("heading", line.text, pageNo, lineBoxes([{ line, page: pageNo }], pages));
         prev = line;
         continue;
       }
@@ -206,18 +217,46 @@ function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string
       if (prev && buf.length) {
         const gap = prev.y - line.y;
         const bigGap = gap > Math.max(prev.size, line.size) * 1.9 || gap < -5;
-        const endsSentence = /[.!?:。]$/.test(buf[buf.length - 1]);
+        const endsSentence = /[.!?:。]$/.test(buf[buf.length - 1].line.text);
         const indented = line.x - prev.x > bodySize * 0.8;
         const refStart = inReferences && /^\[\d+\]/.test(line.text);
         if (bigGap || (endsSentence && indented) || refStart) flush();
       }
-      if (!buf.length) bufPage = pageNo;
-      buf.push(line.text);
+      buf.push({ line, page: pageNo });
       prev = line;
     }
   });
   flush();
   return chunks;
+}
+
+/**
+ * 段落在页面上的矩形区域（左上角为原点，单位为 PDF 点）。
+ * 跨栏或跨页时拆成多个矩形：换页、或下一行跑到上方（进入右栏）时另起一块。
+ */
+function lineBoxes(lines: { line: Line; page: number }[], pages: PageLines[]): ChunkBox[] {
+  const boxes: ChunkBox[] = [];
+  let cur: { page: number; x0: number; x1: number; top: number; bottom: number } | null = null;
+  const commit = () => {
+    if (!cur) return;
+    const pad = 2;
+    boxes.push({ page: cur.page, x: cur.x0 - pad, y: cur.top - pad, w: cur.x1 - cur.x0 + pad * 2, h: cur.bottom - cur.top + pad * 2 });
+  };
+  for (const { line, page } of lines) {
+    const h = pages[page - 1]?.height ?? 0;
+    const top = h - (line.y + line.size * 0.9);
+    const bottom = h - (line.y - line.size * 0.25);
+    if (cur && cur.page === page && top >= cur.top - 2) {
+      cur.x0 = Math.min(cur.x0, line.x);
+      cur.x1 = Math.max(cur.x1, line.x + line.width);
+      cur.bottom = Math.max(cur.bottom, bottom);
+    } else {
+      commit();
+      cur = { page, x0: line.x, x1: line.x + line.width, top, bottom };
+    }
+  }
+  commit();
+  return boxes;
 }
 
 /** 图表内部的零散标签（“C T1 ... TN”“Fine-Tuning”），不是正文，不进入翻译与检索 */

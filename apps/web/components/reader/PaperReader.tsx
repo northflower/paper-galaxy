@@ -1,12 +1,13 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ListTree, MessagesSquare, PanelRight, X } from "lucide-react";
+import { ArrowLeft, ListTree, MessagesSquare, Moon, PanelRight, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { chunkLabel, db, getChunks } from "@/lib/db";
+import { useChunkBoxes } from "@/lib/hooks/useChunkBoxes";
 import { usePaperAnalysis } from "@/lib/hooks/usePaperAnalysis";
 import { useTranslator } from "@/lib/hooks/useTranslator";
 import { buildIndex } from "@/lib/rag/search";
@@ -14,11 +15,12 @@ import { useReader, type ViewMode } from "@/stores/reader";
 import { buildTermMatcher, ChunkRow } from "./ChunkRow";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { PaperOutline } from "./PaperOutline";
+import { PdfView } from "./PdfView";
 import { SelectionToolbar } from "./SelectionToolbar";
 
 const MODES: { value: ViewMode; label: string }[] = [
-  { value: "bilingual", label: "对照" },
   { value: "original", label: "原文" },
+  { value: "bilingual", label: "对照" },
   { value: "translation", label: "译文" },
 ];
 
@@ -27,6 +29,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const paper = useLiveQuery(() => db.papers.get(id).then((p) => p ?? null), [id]);
   const chunks = useLiveQuery(() => getChunks(id), [id]);
   const analysis = usePaperAnalysis(paper ?? undefined, chunks);
+  useChunkBoxes(paper ?? undefined, chunks);
   const glossaryReady = analysis.glossary.status === "done" || analysis.glossary.status === "error";
   const translator = useTranslator(paper?.glossary, glossaryReady);
   const { viewMode, setViewMode, sideTab, setSideTab, activeRefs, reset } = useReader();
@@ -34,7 +37,23 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const [panelOpen, setPanelOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [panelHidden, setPanelHidden] = useState(false);
+  const [railHidden, setRailHidden] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
+  // 夜间纸张：把 PDF 页面反色成深色，记在本机
+  const [night, setNight] = useState(false);
+  useEffect(() => {
+    try {
+      setNight(localStorage.getItem("pg-night") === "1");
+    } catch {}
+  }, []);
+  const toggleNight = () => {
+    setNight((v) => {
+      try {
+        localStorage.setItem("pg-night", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  };
 
   useEffect(() => reset, [id, reset]);
 
@@ -106,8 +125,8 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           </Link>
           <button
             aria-label="论文脉络与目录"
-            onClick={() => setOutlineOpen(true)}
-            className="rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg xl:hidden"
+            onClick={() => (window.innerWidth >= 1280 ? setRailHidden((v) => !v) : setOutlineOpen(true))}
+            className={clsx("rounded-lg p-2 transition hover:bg-white/5 hover:text-fg", railHidden ? "text-faint" : "text-muted")}
           >
             <ListTree className="h-4 w-4" />
           </button>
@@ -147,6 +166,16 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               </button>
             ))}
           </div>
+          {viewMode !== "translation" && (
+            <button
+              aria-label={night ? "原色纸张" : "夜间纸张"}
+              title={night ? "原色纸张" : "夜间纸张"}
+              onClick={toggleNight}
+              className="rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg"
+            >
+              {night ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          )}
           <button
             aria-label={panelHidden ? "展开 AI 面板" : "收起 AI 面板"}
             onClick={() => setPanelHidden((v) => !v)}
@@ -163,14 +192,23 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
       <div
         className={clsx(
           "mx-auto grid max-w-[1720px] gap-5 px-3 pb-24 pt-5 sm:px-5",
-          panelHidden ? "xl:grid-cols-[248px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[248px_minmax(0,1fr)_380px]",
+          !panelHidden && "lg:grid-cols-[minmax(0,1fr)_380px]",
+          // 桌面端左右两栏都可收起，把空间让给 PDF 页面
+          railHidden
+            ? panelHidden
+              ? "xl:grid-cols-[minmax(0,1fr)]"
+              : "xl:grid-cols-[minmax(0,1fr)_380px]"
+            : panelHidden
+              ? "xl:grid-cols-[248px_minmax(0,1fr)]"
+              : "xl:grid-cols-[248px_minmax(0,1fr)_380px]",
         )}
       >
         {/* 左栏：脉络 / 目录。xl 常驻，小屏为抽屉 */}
         {outlineOpen && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm xl:hidden" onClick={() => setOutlineOpen(false)} />}
         <aside
           className={clsx(
-            "xl:sticky xl:top-[76px] xl:block xl:h-[calc(100dvh-96px)] xl:pt-1",
+            "xl:sticky xl:top-[76px] xl:h-[calc(100dvh-96px)] xl:pt-1",
+            railHidden ? "xl:hidden" : "xl:block",
             outlineOpen ? "panel fixed inset-y-0 left-0 z-50 w-[300px] p-4 pt-5 xl:static xl:w-auto xl:border-0 xl:bg-none xl:p-0 xl:shadow-none" : "hidden",
           )}
         >
@@ -186,32 +224,47 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           />
         </aside>
 
-        <article ref={articleRef} className="panel min-w-0 rounded-2xl px-3 py-8 sm:px-10 sm:py-12">
-          <div className={clsx("mx-auto", viewMode === "bilingual" ? "max-w-[1100px]" : "max-w-[720px]")}>
-            {body.map((c) => (
-              <ChunkRow
-                key={c.id}
-                chunk={c}
-                mode={viewMode}
-                active={activeSet.has(c.ref)}
-                streamingText={translator.streaming[c.id]}
-                error={translator.failed[c.id]}
-                matcher={matcher}
-                onVisible={translator.request}
-              />
-            ))}
-            {references.length > 0 && (
-              <details className="mt-14 border-t border-line pt-6 text-sm text-muted">
-                <summary className="cursor-pointer select-none text-faint transition hover:text-fg">参考文献 · {references.length}</summary>
-                <ol className="mt-4 space-y-2 font-serif text-[13px] leading-relaxed">
-                  {references.map((r) => (
-                    <li key={r.id}>{r.text}</li>
-                  ))}
-                </ol>
-              </details>
-            )}
-          </div>
-        </article>
+        {viewMode !== "translation" && paper.file ? (
+          <article ref={articleRef} className="min-w-0">
+            <PdfView
+              paperId={paper.id}
+              file={paper.file}
+              chunks={body}
+              mode={viewMode}
+              activeSet={activeSet}
+              night={night}
+              matcher={matcher}
+              translator={translator}
+            />
+          </article>
+        ) : (
+          <article ref={articleRef} className="panel min-w-0 rounded-2xl px-3 py-8 sm:px-10 sm:py-12">
+            <div className="mx-auto max-w-[720px]">
+              {body.map((c) => (
+                <ChunkRow
+                  key={c.id}
+                  chunk={c}
+                  mode={viewMode}
+                  active={activeSet.has(c.ref)}
+                  streamingText={translator.streaming[c.id]}
+                  error={translator.failed[c.id]}
+                  matcher={matcher}
+                  onVisible={translator.request}
+                />
+              ))}
+              {references.length > 0 && (
+                <details className="mt-14 border-t border-line pt-6 text-sm text-muted">
+                  <summary className="cursor-pointer select-none text-faint transition hover:text-fg">参考文献 · {references.length}</summary>
+                  <ol className="mt-4 space-y-2 font-serif text-[13px] leading-relaxed">
+                    {references.map((r) => (
+                      <li key={r.id}>{r.text}</li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+            </div>
+          </article>
+        )}
 
         <aside
           className={clsx(

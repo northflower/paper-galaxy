@@ -19,10 +19,12 @@ interface Props {
   error?: string;
   matcher: TermMatcher;
   onVisible: (chunk: Chunk) => void;
+  /** 与 PDF 页面并排时使用更紧凑的排版 */
+  compact?: boolean;
 }
 
 /** 单个段落行：原文（术语高亮 + 释义浮层）与译文（流式 / 缓存）并排 */
-export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingText, error, matcher, onVisible }: Props) {
+export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingText, error, matcher, onVisible, compact }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   // 首页标题之前的短段落是作者、单位、邮箱，不需要翻译
   const frontMatter = chunk.page === 1 && !chunk.section && chunk.text.length < 300;
@@ -45,6 +47,13 @@ export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingT
     return () => io.disconnect();
   }, [chunk, needsTranslation, onVisible, error]);
 
+  if (chunk.kind === "title" && compact) {
+    return (
+      <h1 id={`chunk-${chunk.ref}`} className="mb-3 px-3 font-serif text-lg font-semibold leading-snug text-fg">
+        {chunk.text}
+      </h1>
+    );
+  }
   if (chunk.kind === "title") {
     return (
       <h1 id={`chunk-${chunk.ref}`} className="mb-8 px-3 font-serif text-[26px] font-semibold leading-[1.25] tracking-[-0.01em] text-fg sm:text-[34px]">
@@ -58,7 +67,8 @@ export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingT
       <h2
         id={`chunk-${chunk.ref}`}
         className={clsx(
-          "scroll-mt-28 mb-3 mt-12 rounded-md px-3 py-1 text-[19px] font-semibold tracking-[-0.01em] text-fg",
+          "scroll-mt-28 rounded-md px-3 py-1 font-semibold tracking-[-0.01em] text-fg",
+          compact ? "mb-1 mt-4 text-[15px]" : "mb-3 mt-12 text-[19px]",
           active && "chunk-active",
         )}
       >
@@ -80,7 +90,7 @@ export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingT
     </p>
   );
   const translated = (
-    <div className="text-[15.5px] leading-[1.9] text-fg/[0.95]">
+    <div className={clsx("text-fg/[0.95]", compact ? "text-[14.5px] leading-[1.85]" : "text-[15.5px] leading-[1.9]")}>
       {translation ? (
         <p className={clsx(!chunk.translation && "caret")}>{translation}</p>
       ) : error ? (
@@ -103,7 +113,8 @@ export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingT
       id={`chunk-${chunk.ref}`}
       data-ref={chunk.ref}
       className={clsx(
-        "group relative scroll-mt-28 rounded-md px-3 py-2.5 transition-colors duration-500",
+        "group relative scroll-mt-28 rounded-md px-3 transition-colors duration-500",
+        compact ? "py-2" : "py-2.5",
         active && "chunk-active",
         mode === "bilingual" && !frontMatter && "grid gap-x-10 gap-y-2 md:grid-cols-2",
       )}
