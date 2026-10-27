@@ -19,7 +19,7 @@ export function translatePrompt(text: string, section: string, terms: { term: st
 }
 
 export const GLOSSARY_SYSTEM = `你是学术术语专家。从论文片段中抽取对读者理解最关键的专业术语（领域术语、方法名、数据集、评价指标、缩写），给出规范中文译名与一句话解释。
-不要抽取常见词。输出 JSON：{"terms":[{"term":"...","translation":"...","explanation":"..."}]}，最多 30 个。
+不要抽取常见词。模型名、数据集名、评测基准等专有名词的 translation 保留英文原名（如 BERT、GLUE、SQuAD），中文含义写进 explanation。输出 JSON：{"terms":[{"term":"...","translation":"...","explanation":"..."}]}，最多 30 个。
 ${DATA_GUARD}`;
 
 export const TRAJECTORY_SYSTEM = `你是一位擅长带学生读论文的导师。请把论文拆解为“研究轨迹”——作者从提出问题到得出结论的论证链条。

@@ -24,7 +24,9 @@ interface Props {
 /** 单个段落行：原文（术语高亮 + 释义浮层）与译文（流式 / 缓存）并排 */
 export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingText, error, matcher, onVisible }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const needsTranslation = chunk.kind === "paragraph" && !chunk.translation && mode !== "original";
+  // 首页标题之前的短段落是作者、单位、邮箱，不需要翻译
+  const frontMatter = chunk.page === 1 && !chunk.section && chunk.text.length < 300;
+  const needsTranslation = chunk.kind === "paragraph" && !frontMatter && !chunk.translation && mode !== "original";
 
   useEffect(() => {
     const el = ref.current;
@@ -102,7 +104,7 @@ export const ChunkRow = memo(function ChunkRow({ chunk, mode, active, streamingT
         {chunk.ref} · P{chunk.page}
       </span>
       {mode !== "translation" && original}
-      {mode !== "original" && translated}
+      {mode !== "original" && (frontMatter ? mode === "translation" && original : translated)}
     </div>
   );
 });

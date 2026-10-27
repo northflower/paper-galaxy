@@ -14,14 +14,27 @@ export function getModel(kind: "chat" | "fast" = "chat") {
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) throw new MissingKeyError();
 
+  // 额外请求参数，例如百炼上关闭思考：LLM_FAST_EXTRA_BODY={"enable_thinking":false}
+  const extra = parseExtraBody(kind === "chat" ? process.env.LLM_EXTRA_BODY : process.env.LLM_FAST_EXTRA_BODY);
   const provider = createOpenAICompatible({
     name: "llm",
     baseURL: process.env.LLM_BASE_URL ?? "https://api.deepseek.com/v1",
     apiKey,
+    transformRequestBody: extra ? (body) => ({ ...body, ...extra }) : undefined,
   });
   const chatModel = process.env.LLM_MODEL ?? "deepseek-chat";
   const fastModel = process.env.LLM_FAST_MODEL ?? chatModel;
   return provider(kind === "chat" ? chatModel : fastModel);
+}
+
+function parseExtraBody(raw: string | undefined): Record<string, unknown> | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    console.warn("[ai] 额外请求参数不是合法 JSON，已忽略");
+    return undefined;
+  }
 }
 
 /** 结构化输出偶尔不合 schema，自动重试一次 */

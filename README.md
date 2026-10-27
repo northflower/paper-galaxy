@@ -55,6 +55,7 @@ HF_ENDPOINT=https://hf-mirror.com npm run download-model
 | `LLM_BASE_URL` | OpenAI 兼容接口地址，默认 DeepSeek |
 | `LLM_MODEL` | 主模型，默认 `deepseek-chat` |
 | `LLM_FAST_MODEL` | 翻译/改写用的快速模型，可选 |
+| `LLM_EXTRA_BODY` / `LLM_FAST_EXTRA_BODY` | 附加到请求体的 JSON，可选。如百炼思考模型可设 `{"enable_thinking":false}` 降低翻译延迟 |
 | `NEXT_PUBLIC_HF_ENDPOINT` | 端侧模型远程下载源，可选 |
 
 ## 目录结构

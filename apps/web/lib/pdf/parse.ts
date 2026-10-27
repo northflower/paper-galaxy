@@ -26,7 +26,9 @@ const MAX_CHUNK = 1400;
 // 整行恰好是常见章节名（可带编号）才算标题，避免正文中以 “experiments …” 开头的行被误判
 const KNOWN_SECTIONS =
   /^((\d+(\.\d+)*\.?|[IVX]{1,5}\.)\s*)?(abstract|introduction|related work|background|preliminar(y|ies)|method(s|ology)?|approach|experiments?|evaluation|results?|discussion|conclusions?|limitations?|acknowledg(e)?ments?|references|bibliography|appendix)( and [a-z ]{3,30})?$/i;
-const NUMBERED_HEADING = /^((\d+(\.\d+){0,3})\.?|[IVX]{1,5}\.|[A-H]\.)\s+[A-Z][^.!?]{1,90}$/;
+// 编号标题：“4.2 SQuAD v1.1”“A.1 Pre-training”“A Additional Details”。标题内允许 “v1.1” 这类点号，但不允许句号断句
+const NUMBERED_HEADING = /^((\d+(\.\d+){0,3})\.?|[IVX]{1,5}\.|[A-H](\.\d+){0,3}\.?)\s+[A-Z][\w-](?:(?![.!?:]\s)[^!?]){0,90}$/;
+const CONTENTS = /^(table of )?contents$/i;
 const REFERENCES = /^(\d+\.?\s*)?(references|bibliography)$/i;
 
 async function loadPdfjs() {
@@ -147,7 +149,7 @@ function isHeading(line: Line, bodySize: number) {
   const t = line.text;
   if (t.length > 100 || t.length < 3) return false;
   if (KNOWN_SECTIONS.test(t) && t.split(" ").length <= 6) return true;
-  if (NUMBERED_HEADING.test(t) && line.size >= bodySize * 0.98 && !/[,;]$/.test(t)) return true;
+  if (NUMBERED_HEADING.test(t) && line.size >= bodySize * 0.98 && !/[.,;:]$/.test(t)) return true;
   return line.size > bodySize * 1.15 && !/[.,;:]$/.test(t);
 }
 
@@ -168,16 +170,25 @@ function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string
     }
   };
   const flush = () => {
-    if (buf.length) push(inReferences ? "reference" : "paragraph", joinLines(buf), bufPage);
+    const text = joinLines(buf);
+    if (buf.length && (inReferences || !isFigureNoise(text))) push(inReferences ? "reference" : "paragraph", text, bufPage);
     buf = [];
   };
 
   if (title) chunks.push({ ref: "c0", order: 0, page: 1, section: "", kind: "title", text: title });
 
+  let tocPage = 0;
   pages.forEach((page, idx) => {
     const pageNo = idx + 1;
     let prev: Line | null = null;
     for (const line of page.lines) {
+      // 目录页的条目长得和标题一样，整页跳过
+      if (pageNo === tocPage) continue;
+      if (CONTENTS.test(line.text)) {
+        flush();
+        tocPage = pageNo;
+        continue;
+      }
       // 跳过页码、页眉中的纯数字行，以及已作为标题输出的行
       if (/^\d{1,3}$/.test(line.text)) continue;
       if (pageNo === 1 && title.includes(line.text) && line.size > bodySize * 1.2) continue;
@@ -185,7 +196,8 @@ function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string
       if (isHeading(line, bodySize)) {
         flush();
         section = line.text;
-        if (REFERENCES.test(line.text)) inReferences = true;
+        // 参考文献之后再出现标题，说明进入了附录
+        inReferences = REFERENCES.test(line.text);
         push("heading", line.text, pageNo);
         prev = line;
         continue;
@@ -206,6 +218,17 @@ function buildChunks(pages: { lines: Line[] }[], bodySize: number, title: string
   });
   flush();
   return chunks;
+}
+
+/** 图表内部的零散标签（“C T1 ... TN”“Fine-Tuning”），不是正文，不进入翻译与检索 */
+function isFigureNoise(text: string) {
+  // 与正文分离的图表编号，如 “Table 3.4:”
+  if (/^(table|figure|fig\.)\s*([A-Z]\.?)?\d+(\.\d+)*[:.]?$/i.test(text)) return true;
+  if (text.length > 120 || /[.!?:。]$/.test(text)) return false;
+  const words = text.split(" ");
+  // 正文以小写普通词为主；图中标签多为大写缩写、符号和省略号
+  const plain = words.filter((w) => /^[a-z]{3,}[,;]?$/.test(w)).length;
+  return words.length < 8 || plain / words.length < 0.3;
 }
 
 function joinLines(lines: string[]) {
