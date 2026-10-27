@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ScholarPanel } from "@/components/scholar/ScholarPanel";
 import { chunkLabel, db, getChunks } from "@/lib/db";
 import { useChunkBoxes } from "@/lib/hooks/useChunkBoxes";
 import { usePaperAnalysis } from "@/lib/hooks/usePaperAnalysis";
@@ -342,6 +343,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               {(
                 [
                   ["chat", "问答"],
+                  ["scholar", "相关研究"],
                   ["glossary", "术语"],
                 ] as const
               ).map(([tab, label]) => (
@@ -366,6 +368,9 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
             {/* 用 hidden 而非条件渲染，切换标签时保留对话记录 */}
             <div className={clsx("h-full", sideTab !== "chat" && "hidden")}>
               {index && <ChatPanel title={paper.title} chunks={chunks} index={index} glossary={paper.glossary ?? []} />}
+            </div>
+            <div className={clsx("h-full", sideTab !== "scholar" && "hidden")}>
+              <ScholarPanel title={paper.title} summary={paper.oneLiner} />
             </div>
             <div className={clsx("h-full", sideTab !== "glossary" && "hidden")}>
               <GlossaryPanel

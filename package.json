@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "论文星图 PaperGalaxy —— AI 驱动的论文研读平台",
   "scripts": {
-    "setup": "npm install --prefix apps/web && npm install --prefix packages/scholar-mcp",
+    "setup": "npm install --prefix apps/web && npm install --prefix packages/scholar-mcp && npm run build --prefix packages/scholar-mcp",
     "dev": "npm run dev --prefix apps/web",
     "build": "npm run build --prefix packages/scholar-mcp && npm run build --prefix apps/web",
     "lint": "npm run lint --prefix apps/web"
