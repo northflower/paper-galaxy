@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { jsonSchema, stepCountIs, streamText, tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { errorResponse, getModel } from "@/lib/ai/provider";
@@ -43,7 +43,9 @@ export async function POST(req: Request) {
   let tools: ToolSet;
   try {
     client = new Client({ name: "paper-galaxy", version: "0.1.0" });
-    await client.connect(new StdioClientTransport({ command: process.execPath, args: [SERVER_PATH], stderr: "ignore" }));
+    // 子进程默认只继承少量系统变量，Semantic Scholar 密钥需显式传入
+    const env = { ...getDefaultEnvironment(), ...(process.env.SEMANTIC_SCHOLAR_API_KEY && { SEMANTIC_SCHOLAR_API_KEY: process.env.SEMANTIC_SCHOLAR_API_KEY }) };
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [SERVER_PATH], env, stderr: "ignore" }));
     const listed = await client.listTools();
     // MCP 工具 → AI SDK 工具：描述与 JSON Schema 原样转交，执行时回调 MCP 服务器
     tools = Object.fromEntries(
