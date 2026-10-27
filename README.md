@@ -5,6 +5,10 @@
 <p><strong>用母语读懂论文。</strong><br/>保留原版排版的 AI 论文阅读器：双语对照、论证脉络、可溯源问答、图表讲解与学术调研 Agent。</p>
 
 <p>
+  <a href="https://paper-galaxy.onrender.com/"><img alt="在线使用" src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%BF%E7%94%A8-paper--galaxy.onrender.com-7c8cff?style=for-the-badge"></a>
+</p>
+
+<p>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7c8cff?style=flat-square"></a>
   <img alt="Next.js 15" src="https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=nextdotjs">
   <img alt="React 19" src="https://img.shields.io/badge/React-19-149eca?style=flat-square&logo=react&logoColor=white">
@@ -117,7 +121,7 @@
 ### 2. 获取代码并安装
 
 ```bash
-git clone https://github.com/<your-username>/paper-galaxy.git
+git clone https://github.com/northflower/paper-galaxy.git
 cd paper-galaxy
 npm run setup
 ```
@@ -272,6 +276,8 @@ packages/scholar-mcp/  学术检索 MCP 服务器
 <br/>
 
 ## 🚢 部署
+
+已部署的公共实例：<https://paper-galaxy.onrender.com/>。自建仍按下面的命令。
 
 ```bash
 npm run build

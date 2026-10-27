@@ -1,7 +1,7 @@
 {
   "name": "paper-galaxy",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "论文星图 PaperGalaxy —— 保留原版排版的 AI 论文阅读器",
   "scripts": {
     "setup": "npm install --prefix apps/web && npm install --prefix packages/scholar-mcp && npm run build --prefix packages/scholar-mcp",
@@ -26,6 +26,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/<your-username>/paper-galaxy.git"
+    "url": "https://github.com/northflower/paper-galaxy.git"
   }
 }

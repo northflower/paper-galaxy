@@ -15,7 +15,7 @@
 ## 本地开发
 
 ```bash
-git clone https://github.com/<your-username>/paper-galaxy.git
+git clone https://github.com/northflower/paper-galaxy.git
 cd paper-galaxy
 npm run setup
 npm run dev

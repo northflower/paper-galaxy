@@ -1,6 +1,6 @@
 {
   "name": "@paper-galaxy/scholar-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "MCP server for scholarly search: arXiv search plus Semantic Scholar paper details, references and citations.",
   "private": true,
   "type": "module",

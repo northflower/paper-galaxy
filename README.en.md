@@ -5,6 +5,10 @@
 <p><strong>Read research papers in your own language.</strong><br/>An AI paper reader that keeps the original PDF layout — bilingual reading, argument outlines, cited Q&amp;A, figure explanations and a research agent.</p>
 
 <p>
+  <a href="https://paper-galaxy.onrender.com/"><img alt="Live demo" src="https://img.shields.io/badge/Live_demo-paper--galaxy.onrender.com-7c8cff?style=for-the-badge"></a>
+</p>
+
+<p>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7c8cff?style=flat-square"></a>
   <img alt="Next.js 15" src="https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=nextdotjs">
   <img alt="React 19" src="https://img.shields.io/badge/React-19-149eca?style=flat-square&logo=react&logoColor=white">
@@ -119,7 +123,7 @@ Language is only part of what makes papers hard to read. Generic translators bre
 ### 2. Clone and install
 
 ```bash
-git clone https://github.com/<your-username>/paper-galaxy.git
+git clone https://github.com/northflower/paper-galaxy.git
 cd paper-galaxy
 npm run setup
 ```
@@ -274,6 +278,8 @@ packages/scholar-mcp/  scholarly search MCP server
 <br/>
 
 ## 🚢 Deployment
+
+A public instance is already deployed at <https://paper-galaxy.onrender.com/>. To host your own, use the commands below.
 
 ```bash
 npm run build
