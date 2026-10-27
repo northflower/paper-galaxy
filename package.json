@@ -2,11 +2,15 @@
   "name": "paper-galaxy",
   "private": true,
   "version": "0.1.0",
-  "description": "论文星图 PaperGalaxy —— AI 驱动的论文研读平台",
+  "description": "论文星图 PaperGalaxy —— 用母语读懂论文的 AI 论文阅读器",
   "scripts": {
     "setup": "npm install --prefix apps/web && npm install --prefix packages/scholar-mcp && npm run build --prefix packages/scholar-mcp",
     "dev": "npm run dev --prefix apps/web",
     "build": "npm run build --prefix packages/scholar-mcp && npm run build --prefix apps/web",
-    "lint": "npm run lint --prefix apps/web"
+    "lint": "npm run lint --prefix apps/web",
+    "start": "npm run start --prefix apps/web"
+  },
+  "engines": {
+    "node": ">=18.18"
   }
 }

@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel, withRetry } from "@/lib/ai/provider";
+import { errorResponse, getModel, withRetry, readLlmConfig } from "@/lib/ai/provider";
 import { GLOSSARY_SYSTEM } from "@/lib/ai/prompts";
 import { clip } from "@/lib/ai/safety";
 import { glossarySchema } from "@/lib/types";
@@ -9,13 +9,14 @@ const bodySchema = z.object({ title: z.string().default(""), text: z.string().mi
 
 /** 抽取论文术语表：之后翻译时按段落检索命中的术语注入 Prompt，保证全文译名一致 */
 export async function POST(req: Request) {
+  const llm = readLlmConfig(req);
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "参数错误" }, { status: 400 });
 
   try {
     const { object } = await withRetry(() =>
       generateObject({
-        model: getModel("fast"),
+        model: getModel("fast", llm),
         schema: glossarySchema,
         system: GLOSSARY_SYSTEM,
         prompt: `论文标题：${parsed.data.title}\n\n论文片段：\n${clip(parsed.data.text, 14000)}\n\n请输出 JSON。`,

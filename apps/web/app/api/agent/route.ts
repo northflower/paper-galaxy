@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { jsonSchema, stepCountIs, streamText, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel } from "@/lib/ai/provider";
+import { errorResponse, getModel, readLlmConfig } from "@/lib/ai/provider";
 import { AGENT_SYSTEM } from "@/lib/ai/prompts";
 import { checkUserInput, clip } from "@/lib/ai/safety";
 
@@ -31,6 +31,7 @@ const bodySchema = z.object({
  * 把服务器暴露的检索工具交给模型自主规划调用；执行过程以 NDJSON 事件流实时推送给前端时间线。
  */
 export async function POST(req: Request) {
+  const llm = readLlmConfig(req);
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "参数错误" }, { status: 400 });
   const { title, summary, goal, custom } = parsed.data;
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
         send({ type: "tools", names: Object.keys(tools) });
         // 快速模型：思考模式下的工具调用需要回传推理内容，兼容性较差
         const result = streamText({
-          model: getModel("fast"),
+          model: getModel("fast", llm),
           system: AGENT_SYSTEM,
           prompt: `正在阅读的论文：${title}\n${summary ? `概要：${summary}\n` : ""}调研目标：${task}`,
           tools,

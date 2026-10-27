@@ -7,9 +7,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ScholarPanel } from "@/components/scholar/ScholarPanel";
+import { SettingsButton } from "@/components/SettingsDialog";
 import { chunkLabel, db, getChunks } from "@/lib/db";
-import { useChunkBoxes } from "@/lib/hooks/useChunkBoxes";
 import { usePaperAnalysis } from "@/lib/hooks/usePaperAnalysis";
+import { useReparse } from "@/lib/hooks/useReparse";
 import { useTranslator } from "@/lib/hooks/useTranslator";
 import { buildIndex } from "@/lib/rag/search";
 import { exportMarkdown } from "@/lib/export";
@@ -30,8 +31,9 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   // 未找到时返回 null，与“加载中”的 undefined 区分
   const paper = useLiveQuery(() => db.papers.get(id).then((p) => p ?? null), [id]);
   const chunks = useLiveQuery(() => getChunks(id), [id]);
-  const analysis = usePaperAnalysis(paper ?? undefined, chunks);
-  useChunkBoxes(paper ?? undefined, chunks);
+  // 解析规则升级时先重新解析，完成后再启动 AI 预处理
+  const reparse = useReparse(paper ?? undefined);
+  const analysis = usePaperAnalysis(reparse.ready ? paper! : undefined, reparse.ready ? chunks : undefined);
   const glossaryReady = analysis.glossary.status === "done" || analysis.glossary.status === "error";
   const translator = useTranslator(paper?.glossary, glossaryReady);
   const { viewMode, setViewMode, sideTab, setSideTab, activeRefs, reset, regionMode, setRegionMode } = useReader();
@@ -330,6 +332,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               {night ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
           )}
+          <SettingsButton className="hidden sm:block" />
           <button
             aria-label={panelHidden ? "展开 AI 面板" : "收起 AI 面板"}
             onClick={() => setPanelHidden((v) => !v)}

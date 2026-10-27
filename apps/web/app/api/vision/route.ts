@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel } from "@/lib/ai/provider";
+import { errorResponse, getModel, readLlmConfig } from "@/lib/ai/provider";
 import { VISION_SYSTEM, visionPrompt } from "@/lib/ai/prompts";
 import { clip } from "@/lib/ai/safety";
 
@@ -21,6 +21,7 @@ export const maxDuration = 60;
 
 /** 多模态讲解：把框选的图表 / 公式截图与本页原文一起交给视觉模型，流式输出讲解 */
 export async function POST(req: Request) {
+  const llm = readLlmConfig(req);
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "图片格式或大小不符合要求" }, { status: 400 });
   const { image, page, title, context } = parsed.data;
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: getModel("vision"),
+      model: getModel("vision", llm),
       system: VISION_SYSTEM,
       messages: [
         {

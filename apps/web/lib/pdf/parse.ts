@@ -37,6 +37,10 @@ const KNOWN_SECTIONS =
 const NUMBERED_HEADING = /^((\d+(\.\d+){0,3})\.?|[IVX]{1,5}\.|[A-H](\.\d+){0,3}\.?)\s+[A-Z][\w-](?:(?![.!?:]\s)[^!?]){0,90}$/;
 const CONTENTS = /^(table of )?contents$/i;
 const REFERENCES = /^(\d+\.?\s*)?(references|bibliography)$/i;
+// 公式中常见的数学符号
+const MATH_CHARS = /[=∈∉∑∏∫−×÷≤≥≈≠∝‖∥√∂∇→←↦⊙⊗∀∃^_{}|]/;
+/** 解析规则有变动时递增，旧论文打开时自动重新解析 */
+export const PARSER_VERSION = 4;
 
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
@@ -61,7 +65,9 @@ export async function parsePdf(file: Blob, onProgress?: (page: number, total: nu
       const [a, b, , , e, f] = it.transform as number[];
       items.push({ str: it.str, x: e, y: f, width: it.width, size: Math.hypot(a, b) || it.height });
     }
-    pages.push({ lines: orderLines(items, viewport.width), width: viewport.width, height: viewport.height });
+    // 去掉页眉、页脚（会议信息、版权声明、页码），它们不是正文
+    const body = items.filter((it) => it.y > viewport.height * 0.075 && it.y < viewport.height * 0.955);
+    pages.push({ lines: orderLines(body, viewport.width), width: viewport.width, height: viewport.height });
     onProgress?.(p, doc.numPages);
   }
 
@@ -79,11 +85,8 @@ export async function parsePdf(file: Blob, onProgress?: (page: number, total: nu
 function orderLines(items: RawItem[], pageWidth: number): Line[] {
   const mid = pageWidth / 2;
   const isFull = (it: RawItem) => it.x < mid - 10 && it.x + it.width > mid + 10;
+  if (!isTwoColumn(items, mid)) return groupLines(items);
   const full = items.filter(isFull);
-  const right = items.filter((it) => !isFull(it) && it.x >= mid - 10);
-  // 单栏论文的正文行大多跨越中线；双栏论文则很少
-  const twoColumn = right.length >= 3 && full.length < items.length * 0.35;
-  if (!twoColumn) return groupLines(items);
 
   const fullLines = groupLines(full);
   const segments: { left: RawItem[]; right: RawItem[] }[] = fullLines.map(() => ({ left: [], right: [] }));
@@ -103,18 +106,51 @@ function orderLines(items: RawItem[], pageWidth: number): Line[] {
   return out;
 }
 
-function groupLines(items: RawItem[]): Line[] {
+/**
+ * 判断是否双栏：把整页文本项按行聚合后，双栏页的大多数行在中线附近有一道明显的栏间空白，
+ * 单栏页的行则连续跨过中线。不能只数“跨中线的文本项”：有的 PDF 逐词输出文本项，单栏页也很少有项跨中线。
+ */
+function isTwoColumn(items: RawItem[], mid: number) {
+  let split = 0;
+  let solid = 0;
+  for (const line of groupRaw(items)) {
+    const parts = line.items.sort((a, b) => a.x - b.x);
+    const left = parts.filter((p) => p.x + p.width <= mid + 4);
+    const right = parts.filter((p) => p.x >= mid - 4);
+    if (parts.some((p) => p.x < mid - 4 && p.x + p.width > mid + 4)) solid++;
+    else if (!left.length || !right.length) {
+      // 只落在一侧的行：右侧独有的行是双栏的证据，左侧独有的行（短行、段尾）不计
+      if (!left.length) split++;
+    } else {
+      const gap = right[0].x - (left[left.length - 1].x + left[left.length - 1].width);
+      if (gap > 8) split++;
+      else solid++;
+    }
+  }
+  return split >= 3 && split > solid;
+}
+
+/** 按基线把文本项聚成行。上下标字号小、基线有偏移，按行内最大字号判断，避免被拆成独立的行 */
+function groupRaw(items: RawItem[]) {
   const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
   const lines: { items: RawItem[]; y: number; size: number }[] = [];
   for (const it of sorted) {
     const last = lines[lines.length - 1];
-    if (last && Math.abs(last.y - it.y) < Math.max(2, last.size * 0.5)) {
+    const size = Math.max(last?.size ?? 0, it.size);
+    if (last && Math.abs(last.y - it.y) < Math.max(2, size * 0.55)) {
       last.items.push(it);
-      last.size = Math.max(last.size, it.size);
+      // 行的基线取正文字号文本项的基线
+      if (it.size > last.size) last.y = it.y;
+      last.size = size;
     } else {
       lines.push({ items: [it], y: it.y, size: it.size });
     }
   }
+  return lines;
+}
+
+function groupLines(items: RawItem[]): Line[] {
+  const lines = groupRaw(items);
   return lines.map((l) => {
     const parts = l.items.sort((a, b) => a.x - b.x);
     let text = "";
@@ -192,6 +228,10 @@ function buildChunks(pages: PageLines[], bodySize: number, title: string): Parse
   pages.forEach((page, idx) => {
     const pageNo = idx + 1;
     let prev: Line | null = null;
+    // 当前段落内的行距
+    let pitch = 0;
+    // 段落可以跨页延续；上一页最后一行已经句末收尾时，新页另起一段
+    if (buf.length && /[.!?。]$/.test(buf[buf.length - 1].line.text)) flush();
     for (const line of page.lines) {
       // 目录页的条目长得和标题一样，整页跳过
       if (pageNo === tocPage) continue;
@@ -203,6 +243,13 @@ function buildChunks(pages: PageLines[], bodySize: number, title: string): Parse
       // 跳过页码、页眉中的纯数字行，以及已作为标题输出的行
       if (/^\d{1,3}$/.test(line.text)) continue;
       if (pageNo === 1 && title.includes(line.text) && line.size > bodySize * 1.2) continue;
+
+      // 独立公式行：结束当前段落且不进入正文，译文页保留公式原样
+      if (!inReferences && isMathLine(line.text)) {
+        flush();
+        prev = null;
+        continue;
+      }
 
       if (isHeading(line, bodySize)) {
         flush();
@@ -219,9 +266,14 @@ function buildChunks(pages: PageLines[], bodySize: number, title: string): Parse
         const bigGap = gap > Math.max(prev.size, line.size) * 1.9 || gap < -5;
         const endsSentence = /[.!?:。]$/.test(buf[buf.length - 1].line.text);
         const indented = line.x - prev.x > bodySize * 0.8;
+        // 不缩进的排版（如 NeurIPS）靠段间距区分段落：比段内行距明显更大
+        const spaced = pitch > 0 && gap > pitch * 1.3;
         const refStart = inReferences && /^\[\d+\]/.test(line.text);
-        if (bigGap || (endsSentence && indented) || refStart) flush();
+        if (bigGap || (endsSentence && (indented || spaced)) || refStart) flush();
+        // 上下标等异常小的行距不计入
+        else if (gap > line.size * 0.9) pitch = pitch ? Math.min(pitch, gap) : gap;
       }
+      if (!buf.length) pitch = 0;
       buf.push({ line, page: pageNo });
       prev = line;
     }
@@ -259,11 +311,21 @@ function lineBoxes(lines: { line: Line; page: number }[], pages: PageLines[]): C
   return boxes;
 }
 
+/** 独立公式行：普通英文单词很少，且含数学符号或以公式编号 “(3)” 结尾 */
+function isMathLine(text: string) {
+  if (text.length > 160) return false;
+  const words = text.split(" ");
+  const plain = words.filter((w) => /^[a-z]{3,}[.,;:]?$/i.test(w)).length;
+  if (plain >= 6) return false;
+  const numbered = /\(\d{1,3}[a-z]?\)$/.test(text);
+  return (numbered || MATH_CHARS.test(text)) && plain / words.length < 0.4;
+}
+
 /** 图表内部的零散标签（“C T1 ... TN”“Fine-Tuning”），不是正文，不进入翻译与检索 */
 function isFigureNoise(text: string) {
   // 与正文分离的图表编号，如 “Table 3.4:”
   if (/^(table|figure|fig\.)\s*([A-Z]\.?)?\d+(\.\d+)*[:.]?$/i.test(text)) return true;
-  if (text.length > 120 || /[.!?:。]$/.test(text)) return false;
+  if (text.length > 400 || /[.!?:。]$/.test(text)) return false;
   const words = text.split(" ");
   // 正文以小写普通词为主；图中标签多为大写缩写、符号和省略号
   const plain = words.filter((w) => /^[a-z]{3,}[,;]?$/.test(w)).length;
@@ -282,7 +344,8 @@ function joinLines(lines: string[]) {
 /** 过长段落按句子切分，保证检索粒度与翻译请求大小合适 */
 function splitLong(text: string): string[] {
   if (text.length <= MAX_CHUNK) return [text];
-  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) ?? [text];
+  // 只在“句末标点 + 空格 + 大写字母”处切开，不丢任何字符（“et al., 2023” 这类缩写不会被当成句末）
+  const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z(“"])/);
   const out: string[] = [];
   let cur = "";
   for (const s of sentences) {
@@ -290,7 +353,7 @@ function splitLong(text: string): string[] {
       out.push(cur.trim());
       cur = "";
     }
-    cur += s;
+    cur += (cur ? " " : "") + s;
   }
   if (cur.trim()) out.push(cur.trim());
   return out;

@@ -1,3 +1,5 @@
+import { aiHeaders } from "@/stores/settings";
+
 /** 读取后端的纯文本流，逐段回调；后端返回 JSON 错误时抛出其中的 message */
 export async function readTextStream(
   res: Response,
@@ -25,7 +27,7 @@ export async function readTextStream(
 export async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...aiHeaders() },
     body: JSON.stringify(body),
     signal,
   });
@@ -36,7 +38,7 @@ export async function postJson<T>(url: string, body: unknown, signal?: AbortSign
 export function postStream(url: string, body: unknown, signal?: AbortSignal) {
   return fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...aiHeaders() },
     body: JSON.stringify(body),
     signal,
   });

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { StarChartBackground } from "@/components/StarChartBackground";
 import { SearchBox, SearchResults, useLibrarySearch } from "@/components/home/LibrarySearch";
 import { Brand } from "@/components/Logo";
+import { SettingsButton } from "@/components/SettingsDialog";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { db, deletePaper } from "@/lib/db";
 
@@ -23,6 +24,7 @@ export default function HomePage() {
       <section className="relative z-10 flex min-h-[100dvh] flex-col">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
           <Brand />
+          <SettingsButton />
         </nav>
 
         <header className="rise px-5 pt-8 text-center sm:pt-14">

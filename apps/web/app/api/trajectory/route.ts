@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel, withRetry } from "@/lib/ai/provider";
+import { errorResponse, getModel, withRetry, readLlmConfig } from "@/lib/ai/provider";
 import { TRAJECTORY_SYSTEM } from "@/lib/ai/prompts";
 import { trajectorySchema, TRAJECTORY_TYPES } from "@/lib/types";
 
@@ -16,6 +16,7 @@ export const maxDuration = 60;
 
 /** 研究轨迹拆解：把论文论证链条结构化，并绑定原文段落作为证据 */
 export async function POST(req: Request) {
+  const llm = readLlmConfig(req);
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "参数错误" }, { status: 400 });
   const { title, paragraphs } = parsed.data;
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   try {
     const { object } = await withRetry(() =>
       generateObject({
-        model: getModel("chat"),
+        model: getModel("chat", llm),
         schema: trajectorySchema,
         system: TRAJECTORY_SYSTEM,
         prompt: `论文标题：${title}\n\n论文正文（方括号内为段落编号）：\n${body}\n\n请输出 JSON。`,

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import type { Chunk, Paper } from "@/lib/types";
-import { parsePdf } from "./parse";
+import { parsePdf, PARSER_VERSION } from "./parse";
 
 export const MAX_PDF_SIZE = 40 * 1024 * 1024;
 
@@ -25,6 +25,7 @@ export async function importPdf(file: File, onProgress?: (page: number, total: n
     createdAt: Date.now(),
     file,
     embedStatus: "idle",
+    parserVersion: PARSER_VERSION,
   };
   const chunks: Chunk[] = parsed.chunks.map((c) => ({ ...c, id: `${id}_${c.order}`, paperId: id }));
   await db.transaction("rw", db.papers, db.chunks, async () => {

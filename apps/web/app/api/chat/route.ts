@@ -1,6 +1,6 @@
 import { streamText } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel } from "@/lib/ai/provider";
+import { errorResponse, getModel, readLlmConfig } from "@/lib/ai/provider";
 import { CHAT_SYSTEM, chatPrompt } from "@/lib/ai/prompts";
 import { checkUserInput, clip } from "@/lib/ai/safety";
 
@@ -17,6 +17,7 @@ export const maxDuration = 60;
 
 /** 溯源问答：检索在浏览器端完成，这里只接收命中的片段并流式生成带引用的回答 */
 export async function POST(req: Request) {
+  const llm = readLlmConfig(req);
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "参数错误" }, { status: 400 });
   const { question, contexts, history } = parsed.data;
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: getModel("chat"),
+      model: getModel("chat", llm),
       system: CHAT_SYSTEM,
       messages: [
         ...history.map((m) => ({ role: m.role, content: clip(m.content, 1500) })),

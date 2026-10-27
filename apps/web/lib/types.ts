@@ -100,6 +100,8 @@ export interface Paper {
   trajectory?: TrajectoryNode[];
   glossary?: GlossaryTerm[];
   embedStatus?: JobStatus;
+  /** 解析规则版本，低于当前版本时自动重新解析 */
+  parserVersion?: number;
   /** 问答记录，刷新页面后恢复 */
   chat?: SavedMessage[];
   /** 学者 Agent 的调研记录 */

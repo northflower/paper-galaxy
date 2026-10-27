@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { Starfield } from "@/components/Starfield";
 import "./globals.css";
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="antialiased">
         <Starfield />
         <div className="relative z-10">{children}</div>
+        <SettingsDialog />
       </body>
     </html>
   );

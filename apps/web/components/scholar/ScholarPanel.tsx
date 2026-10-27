@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { db } from "@/lib/db";
+import { aiHeaders } from "@/stores/settings";
 import type { SavedRun } from "@/lib/types";
 
 type Goal = "background" | "followup" | "related" | "custom";
@@ -62,7 +63,7 @@ ${run.report}`);
     try {
       const res = await fetch("/api/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...aiHeaders() },
         body: JSON.stringify({ title, summary, goal, custom: goal === "custom" ? label : "" }),
         signal: controller.signal,
       });
