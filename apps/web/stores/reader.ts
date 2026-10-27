@@ -29,7 +29,10 @@ export const useReader = create<ReaderState>((set, get) => ({
     set({ activeRefs: refs, activeNodeIndex: nodeIndex });
     if (scroll && refs[0]) {
       // 原版 PDF 视图优先滚到页面上的段落位置，其次是文本视图中的段落
-      const target = document.getElementById(`anchor-${refs[0]}`) ?? document.getElementById(`chunk-${refs[0]}`);
+      const target =
+        document.getElementById(`anchor-${refs[0]}`) ??
+        document.getElementById(`tr-${refs[0]}`) ??
+        document.getElementById(`chunk-${refs[0]}`);
       target?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   },

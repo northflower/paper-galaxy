@@ -40,10 +40,11 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const [railHidden, setRailHidden] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
   // 夜间纸张：把 PDF 页面反色成深色，记在本机
-  const [night, setNight] = useState(false);
+  const [night, setNight] = useState(true);
   useEffect(() => {
     try {
-      setNight(localStorage.getItem("pg-night") === "1");
+      // 默认深色纸张，与整体界面一致
+      setNight(localStorage.getItem("pg-night") !== "0");
     } catch {}
   }, []);
   const toggleNight = () => {
@@ -166,7 +167,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               </button>
             ))}
           </div>
-          {viewMode !== "translation" && (
+          {paper.file && (
             <button
               aria-label={night ? "原色纸张" : "夜间纸张"}
               title={night ? "原色纸张" : "夜间纸张"}
@@ -224,7 +225,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           />
         </aside>
 
-        {viewMode !== "translation" && paper.file ? (
+        {paper.file ? (
           <article ref={articleRef} className="min-w-0">
             <PdfView
               paperId={paper.id}
@@ -233,7 +234,6 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               mode={viewMode}
               activeSet={activeSet}
               night={night}
-              matcher={matcher}
               translator={translator}
             />
           </article>

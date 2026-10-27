@@ -1,8 +1,9 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { Trash2 } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { GalaxyBackground } from "@/components/GalaxyBackground";
 import { SearchBox, SearchResults, useLibrarySearch } from "@/components/home/LibrarySearch";
 import { Brand } from "@/components/Logo";
 import { UploadDropzone } from "@/components/UploadDropzone";
@@ -16,13 +17,16 @@ export default function HomePage() {
 
   return (
     <div className="min-h-dvh">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <Brand />
-      </nav>
+      <GalaxyBackground />
 
-      <main className="mx-auto max-w-6xl px-5 pb-28 sm:px-8">
-        <header className="rise pb-12 pt-14 text-center sm:pt-24">
-          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-7xl">
+      {/* 首屏：标题在上，星系居中，上传卡片落在星系下方 */}
+      <section className="relative z-10 flex min-h-[100dvh] flex-col">
+        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
+          <Brand />
+        </nav>
+
+        <header className="rise px-5 pt-8 text-center sm:pt-14">
+          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] drop-shadow-[0_4px_32px_rgba(0,0,0,0.6)] sm:text-7xl">
             <span className="text-gradient">用母语读懂论文</span>
           </h1>
           <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted">
@@ -35,12 +39,26 @@ export default function HomePage() {
           </ul>
         </header>
 
-        <div className="rise mx-auto max-w-2xl" style={{ animationDelay: "80ms" }}>
-          <UploadDropzone />
-        </div>
+        <div className="flex-1" />
 
+        <div className="rise mx-auto w-full max-w-2xl px-5 pb-10" style={{ animationDelay: "120ms" }}>
+          <div className="rounded-2xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+            <UploadDropzone />
+          </div>
+          {papers && papers.length > 0 && (
+            <a
+              href="#library"
+              className="mx-auto mt-6 flex w-fit items-center gap-1 text-xs text-faint transition hover:text-muted"
+            >
+              论文库 <ChevronDown className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </section>
+
+      <main id="library" className="relative z-10 mx-auto max-w-6xl scroll-mt-6 px-5 pb-28 sm:px-8">
         {papers && papers.length > 0 && (
-          <section className="rise mt-20" style={{ animationDelay: "160ms" }}>
+          <section className="pt-10">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="eyebrow">
                 论文库 <span className="ml-1 text-faint/70">{papers.length}</span>

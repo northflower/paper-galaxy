@@ -2,37 +2,47 @@
 
 import clsx from "clsx";
 import type { RenderTask } from "pdfjs-dist";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { closePdf, openPdf, type PdfHandle } from "@/lib/pdf/document";
 import type { Chunk, ChunkBox } from "@/lib/types";
+import type { ViewMode } from "@/stores/reader";
 import { useReader } from "@/stores/reader";
-import { ChunkRow, type TermMatcher } from "./ChunkRow";
+
+export interface Translator {
+  streaming: Record<string, string>;
+  failed: Record<string, string>;
+  request: (chunk: Chunk) => void;
+}
 
 interface Props {
   paperId: string;
   file: Blob;
   chunks: Chunk[];
-  mode: "original" | "bilingual";
+  mode: ViewMode;
   activeSet: Set<string>;
   night: boolean;
-  matcher: TermMatcher;
-  translator: {
-    streaming: Record<string, string>;
-    failed: Record<string, string>;
-    request: (chunk: Chunk) => void;
-  };
+  translator: Translator;
 }
 
+/** 段落在某一页上的一块矩形；boxIndex 用于把译文按面积分配到跨栏、跨页的各块 */
 interface Mark {
-  ref: string;
+  chunk: Chunk;
   box: ChunkBox;
+  boxIndex: number;
 }
+
+// 夜间纸张：invert(0.9) 后白纸变为 #1a1a1a，遮罩与文字颜色需与之一致
+const PAPER = {
+  day: { bg: "#ffffff", text: "#1d1d1f", filter: undefined },
+  night: { bg: "#1a1a1a", text: "#e2e3e8", filter: "invert(0.9) hue-rotate(180deg)" },
+};
 
 /**
- * 原版 PDF 阅读：按页渲染原始排版（含图表、公式），叠加可选中的文字层与段落高亮。
- * 对照模式下每页右侧是该页段落的译文，悬停或点击任一侧，另一侧同步高亮。
+ * 原版 PDF 阅读：按页渲染原始排版（含图表、公式）。
+ * 译文页沿用原页面的画面，把正文段落的位置替换为译文，图表、公式、表格保持原样，
+ * 与原文页逐段对应；悬停或点击任一侧，另一侧同步高亮。
  */
-export function PdfView({ paperId, file, chunks, mode, activeSet, night, matcher, translator }: Props) {
+export function PdfView({ paperId, file, chunks, mode, activeSet, night, translator }: Props) {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -49,88 +59,52 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, matcher
     };
   }, [paperId, file]);
 
-  // 按页归集：段落的所有矩形用于高亮，段落本身归到它开始的那一页显示译文
-  const { marksByPage, chunksByPage } = useMemo(() => {
+  const marksByPage = useMemo(() => {
     const marks = new Map<number, Mark[]>();
-    const byPage = new Map<number, Chunk[]>();
-    for (const c of chunks) {
-      for (const box of c.boxes ?? []) {
+    for (const chunk of chunks) {
+      chunk.boxes?.forEach((box, boxIndex) => {
         if (!marks.has(box.page)) marks.set(box.page, []);
-        marks.get(box.page)!.push({ ref: c.ref, box });
-      }
-      const page = c.boxes?.[0]?.page ?? c.page;
-      if (!byPage.has(page)) byPage.set(page, []);
-      byPage.get(page)!.push(c);
+        marks.get(box.page)!.push({ chunk, box, boxIndex });
+      });
     }
-    return { marksByPage: marks, chunksByPage: byPage };
+    return marks;
   }, [chunks]);
 
-  // 点击页面上的段落：高亮它，并把右侧对应译文滚入视野
-  const pick = useCallback(
-    (ref: string) => {
-      focus([ref], { scroll: false });
-      document.getElementById(`chunk-${ref}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    },
-    [focus],
-  );
+  // 点击任一侧的段落：两侧同时高亮
+  const pick = useCallback((ref: string) => focus([ref], { scroll: false }), [focus]);
 
   if (error) return <p className="py-20 text-center text-sm text-red-300">PDF 加载失败：{error}</p>;
   if (!handle) {
     return (
-      <div className="mx-auto w-full max-w-[860px]">
+      <div className="mx-auto w-full max-w-[920px]">
         <div className="skeleton aspect-[1/1.3] w-full rounded-sm" />
       </div>
     );
   }
 
+  const paper = night ? PAPER.night : PAPER.day;
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" onMouseLeave={() => setHovered(null)}>
       {handle.sizes.map((size, i) => {
         const page = i + 1;
-        const pageChunks = chunksByPage.get(page) ?? [];
-        const pageView = (
-          <PdfPage
-            handle={handle}
-            page={page}
-            size={size}
-            marks={marksByPage.get(page) ?? []}
-            activeSet={activeSet}
-            hovered={hovered}
-            night={night}
-            onPick={mode === "bilingual" ? pick : undefined}
-          />
-        );
-        if (mode === "original") {
-          return (
-            <div key={page} className="mx-auto w-full max-w-[920px]">
-              {pageView}
-            </div>
-          );
-        }
+        const common = {
+          handle,
+          page,
+          size,
+          marks: marksByPage.get(page) ?? [],
+          activeSet,
+          hovered,
+          paper,
+          onPick: pick,
+          onHover: setHovered,
+        };
         return (
-          <div key={page} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <div className="lg:sticky lg:top-[76px]">{pageView}</div>
-            <div className="min-w-0 space-y-0.5" onMouseLeave={() => setHovered(null)}>
-              {pageChunks
-                .filter((c) => c.kind !== "reference")
-                .map((c) => (
-                  <div key={c.id} onMouseEnter={() => setHovered(c.ref)}>
-                    <ChunkRow
-                      chunk={c}
-                      mode="translation"
-                      active={activeSet.has(c.ref) || hovered === c.ref}
-                      streamingText={translator.streaming[c.id]}
-                      error={translator.failed[c.id]}
-                      matcher={matcher}
-                      onVisible={translator.request}
-                      compact
-                    />
-                  </div>
-                ))}
-              {!pageChunks.some((c) => c.kind === "paragraph") && (
-                <p className="px-3 py-2 text-xs text-faint">本页没有可翻译的正文（图表、参考文献等）</p>
-              )}
-            </div>
+          <div
+            key={page}
+            className={clsx(mode === "bilingual" ? "grid items-start gap-4 lg:grid-cols-2" : "mx-auto w-full max-w-[920px]")}
+          >
+            {mode !== "translation" && <PdfPage {...common} variant="original" />}
+            {mode !== "original" && <PdfPage {...common} variant="translated" translator={translator} />}
           </div>
         );
       })}
@@ -145,34 +119,51 @@ interface PageProps {
   marks: Mark[];
   activeSet: Set<string>;
   hovered: string | null;
-  night: boolean;
-  onPick?: (ref: string) => void;
+  paper: (typeof PAPER)["day"] | (typeof PAPER)["night"];
+  variant: "original" | "translated";
+  translator?: Translator;
+  onPick: (ref: string) => void;
+  onHover: (ref: string | null) => void;
 }
 
-/** 单页：只在接近视口时渲染画布与文字层，离开后释放，长论文也不会占满内存 */
-const PdfPage = memo(function PdfPage({ handle, page, size, marks, activeSet, hovered, night, onPick }: PageProps) {
+/** 单页：只在接近视口时渲染，离开后释放画布，长论文也不会占满内存 */
+const PdfPage = memo(function PdfPage({
+  handle,
+  page,
+  size,
+  marks,
+  activeSet,
+  hovered,
+  paper,
+  variant,
+  translator,
+  onPick,
+  onHover,
+}: PageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   const [visible, setVisible] = useState(false);
+  const translated = variant === "translated";
 
   // 宽度随布局变化，缩放比 = 显示宽度 / PDF 页宽
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     let timer = 0;
+    let first = true;
     const ro = new ResizeObserver(([entry]) => {
       clearTimeout(timer);
       const w = entry.contentRect.width;
-      timer = window.setTimeout(() => setScale(w / size.width), scale ? 150 : 0);
+      timer = window.setTimeout(() => setScale(w / size.width), first ? 0 : 150);
+      first = false;
     });
     ro.observe(el);
     return () => {
       ro.disconnect();
       clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.width]);
 
   useEffect(() => {
@@ -183,15 +174,22 @@ const PdfPage = memo(function PdfPage({ handle, page, size, marks, activeSet, ho
     return () => io.disconnect();
   }, []);
 
+  // 译文页进入视野时，请求本页所有正文段落的翻译（已翻译或已在队列中的会自动跳过）
+  const request = translator?.request;
+  useEffect(() => {
+    if (!translated || !visible || !request) return;
+    for (const m of marks) if (translatable(m.chunk)) request(m.chunk);
+  }, [translated, visible, marks, request]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const textEl = textRef.current;
-    if (!canvas || !textEl || !scale) return;
+    if (!canvas || !scale) return;
     if (!visible) {
       // 释放离屏页面的位图内存
       canvas.width = 0;
       canvas.height = 0;
-      textEl.replaceChildren();
+      textEl?.replaceChildren();
       return;
     }
     let cancelled = false;
@@ -213,7 +211,7 @@ const PdfPage = memo(function PdfPage({ handle, page, size, marks, activeSet, ho
       } catch {
         return;
       }
-      if (cancelled) return;
+      if (cancelled || !textEl) return;
       const { TextLayer } = await import("pdfjs-dist");
       textEl.replaceChildren();
       await new TextLayer({ textContentSource: pdfPage.streamTextContent(), container: textEl, viewport }).render();
@@ -224,53 +222,191 @@ const PdfPage = memo(function PdfPage({ handle, page, size, marks, activeSet, ho
     };
   }, [handle, page, scale, visible]);
 
+  // 在原文页上点击段落（且没有在选文字）时，定位该段
   const pickAt = (e: React.PointerEvent) => {
-    if (!onPick || window.getSelection()?.toString().trim()) return;
+    if (translated || window.getSelection()?.toString().trim()) return;
     const rect = wrapRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     const hit = marks.find(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h);
-    if (hit) onPick(hit.ref);
+    if (hit) onPick(hit.chunk.ref);
   };
 
   const seen = new Set<string>();
   return (
-    <figure className="m-0">
+    <figure className="m-0 min-w-0">
       <div
         ref={wrapRef}
         onPointerUp={pickAt}
-        className={clsx(
-          "relative w-full overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_-24px_rgba(0,0,0,0.9)]",
-          night ? "bg-[#161719]" : "bg-white",
-        )}
-        style={{ aspectRatio: `${size.width} / ${size.height}`, ["--scale-factor" as string]: scale }}
+        className="relative w-full overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_-24px_rgba(0,0,0,0.9)]"
+        style={{ aspectRatio: `${size.width} / ${size.height}`, background: paper.bg, ["--scale-factor" as string]: scale }}
       >
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 h-full w-full"
-          style={night ? { filter: "invert(0.88) hue-rotate(180deg) contrast(0.95)" } : undefined}
-        />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ filter: paper.filter }} />
+
         {scale > 0 &&
-          marks.map(({ ref, box }, i) => {
+          marks.map((m, i) => {
+            const ref = m.chunk.ref;
             const on = activeSet.has(ref);
             const hover = hovered === ref;
-            // 每个段落的首个矩形放一个滚动锚点，供脉络、引用、检索结果跳转
-            const anchor = !seen.has(ref) && seen.add(ref);
+            const style = { left: m.box.x * scale, top: m.box.y * scale, width: m.box.w * scale, height: m.box.h * scale };
+            const ring = on
+              ? "ring-1 ring-[rgba(120,135,255,0.75)] bg-[rgba(99,115,255,0.14)]"
+              : hover
+                ? "bg-[rgba(99,115,255,0.09)]"
+                : "";
+            // 原文页上每个段落的首块放一个滚动锚点，供脉络、引用、检索结果跳转
+            const anchor = !translated && !seen.has(ref) && seen.add(ref);
+
+            if (translated && translatable(m.chunk) && translator) {
+              return (
+                <TranslatedBox
+                  key={`${ref}-${i}`}
+                  mark={m}
+                  style={style}
+                  scale={scale}
+                  paper={paper}
+                  translator={translator}
+                  className={ring}
+                  onHover={onHover}
+                  onPick={onPick}
+                />
+              );
+            }
             return (
               <div
                 key={`${ref}-${i}`}
                 id={anchor ? `anchor-${ref}` : undefined}
-                className={clsx(
-                  "pointer-events-none absolute scroll-mt-28 rounded-[2px] transition-colors duration-300",
-                  on ? "bg-[rgba(99,115,255,0.16)] ring-1 ring-[rgba(99,115,255,0.55)]" : hover ? "bg-[rgba(99,115,255,0.09)]" : "",
-                )}
-                style={{ left: box.x * scale, top: box.y * scale, width: box.w * scale, height: box.h * scale }}
+                onMouseEnter={() => onHover(ref)}
+                className={clsx("absolute scroll-mt-28 rounded-[2px] transition-colors duration-300", ring, translated && "pointer-events-auto")}
+                style={{ ...style, pointerEvents: translated ? undefined : "none" }}
               />
             );
           })}
-        <div ref={textRef} className="textLayer" />
+
+        {!translated && <div ref={textRef} className="textLayer" onMouseMove={(e) => hoverAt(e, wrapRef, scale, marks, onHover)} />}
       </div>
-      <figcaption className="mt-2 text-center font-mono text-[11px] text-faint">{page}</figcaption>
+      <figcaption className="mt-2 text-center font-mono text-[11px] text-faint">
+        {page}
+        {translated && <span className="ml-1.5 font-sans">· 译</span>}
+      </figcaption>
     </figure>
   );
 });
+
+function hoverAt(
+  e: React.MouseEvent,
+  wrapRef: React.RefObject<HTMLDivElement | null>,
+  scale: number,
+  marks: Mark[],
+  onHover: (ref: string | null) => void,
+) {
+  const rect = wrapRef.current?.getBoundingClientRect();
+  if (!rect || !scale) return;
+  const x = (e.clientX - rect.left) / scale;
+  const y = (e.clientY - rect.top) / scale;
+  const hit = marks.find(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h);
+  onHover(hit?.chunk.ref ?? null);
+}
+
+/**
+ * 译文块：用纸张底色盖住原文段落，在同一位置排入译文，并自动缩放字号填满原段落的区域。
+ * 段落跨栏、跨页时，译文按各块面积比例切分。
+ */
+function TranslatedBox({
+  mark,
+  style,
+  scale,
+  paper,
+  translator,
+  className,
+  onHover,
+  onPick,
+}: {
+  mark: Mark;
+  style: React.CSSProperties;
+  scale: number;
+  paper: PageProps["paper"];
+  translator: Translator;
+  className: string;
+  onHover: (ref: string | null) => void;
+  onPick: (ref: string) => void;
+}) {
+  const { chunk, boxIndex } = mark;
+  const full = chunk.translation ?? translator.streaming[chunk.id];
+  const failed = translator.failed[chunk.id];
+  const text = full ? sliceForBox(full, chunk.boxes!, boxIndex) : "";
+  const textRef = useRef<HTMLDivElement>(null);
+
+  // 二分查找能放下全部译文的最大字号；上限约等于原文正文字号
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || !text) return;
+    let lo = 3;
+    let hi = 10.5 * scale;
+    for (let k = 0; k < 8; k++) {
+      const mid = (lo + hi) / 2;
+      el.style.fontSize = `${mid}px`;
+      if (el.scrollHeight <= el.clientHeight + 1) lo = mid;
+      else hi = mid;
+    }
+    el.style.fontSize = `${lo}px`;
+  }, [text, scale, style.width, style.height]);
+
+  return (
+    <div
+      id={boxIndex === 0 ? `tr-${chunk.ref}` : undefined}
+      onMouseEnter={() => onHover(chunk.ref)}
+      onClick={() => onPick(chunk.ref)}
+      className={clsx("absolute cursor-pointer overflow-hidden rounded-[2px] transition-colors duration-300", className)}
+      style={{ ...style, background: paper.bg }}
+    >
+      {text ? (
+        <div
+          ref={textRef}
+          className={clsx("h-full w-full text-justify", !chunk.translation && "caret")}
+          style={{ color: paper.text, lineHeight: 1.42, fontFamily: "var(--font-sans)" }}
+        >
+          {text}
+        </div>
+      ) : failed ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            translator.request(chunk);
+          }}
+          className="h-full w-full text-[11px] text-red-400 hover:underline"
+        >
+          翻译失败，点击重试
+        </button>
+      ) : (
+        <div className="flex h-full flex-col justify-start gap-[6px] p-[2px] opacity-60">
+          {Array.from({ length: Math.max(1, Math.min(8, Math.floor(((style.height as number) || 0) / (12 * scale)))) }, (_, k) => (
+            <div key={k} className="skeleton h-[40%] max-h-[8px] min-h-[3px]" style={{ width: k % 3 === 2 ? "70%" : "100%" }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 按矩形面积比例，把整段译文切给第 boxIndex 块 */
+function sliceForBox(text: string, boxes: ChunkBox[], boxIndex: number) {
+  if (boxes.length === 1) return text;
+  const areas = boxes.map((b) => b.w * b.h);
+  const total = areas.reduce((a, b) => a + b, 0);
+  let start = 0;
+  for (let i = 0; i < boxIndex; i++) start += areas[i] / total;
+  const end = start + areas[boxIndex] / total;
+  return text.slice(Math.round(start * text.length), Math.round(end * text.length));
+}
+
+/**
+ * 译文页只替换正文段落：表格被解析成段落时多为数字与缩写，首页标题前的作者、单位信息也不翻译，
+ * 这些区域保留原样
+ */
+function translatable(chunk: Chunk) {
+  if (chunk.kind !== "paragraph") return false;
+  if (chunk.page === 1 && !chunk.section && chunk.text.length < 300) return false;
+  const letters = chunk.text.match(/[a-z]/gi)?.length ?? 0;
+  return letters / chunk.text.length > 0.6;
+}
