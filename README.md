@@ -29,6 +29,7 @@
 | 学者 Agent | 一键调研前置工作、后续工作或相近研究，也可自定义目标。时间线实时展示每次工具调用，最后输出带链接的研究脉络报告，可一键复制 | Agent 自主规划 + MCP（自研 scholar-mcp：arXiv / Semantic Scholar） |
 | 论文库检索 | 在所有论文中做语义检索，结果直达原文段落 | 查询改写 + 端侧向量检索 |
 | 划词翻译 / 解释 | 选中原文即可就地翻译（遵循术语表），或交给 AI 解释 | 流式翻译 + 问答 |
+| 模型设置 | 在网页中配置任意 OpenAI 兼容接口、Key 与模型，内置百炼 / DeepSeek / 智谱 / OpenAI 预设，可测试连接 | — |
 | 体验细节 | 一键试读示例论文；记住阅读位置；导出双语 Markdown 笔记；移动端适配 | — |
 | 本地优先 | PDF 解析、向量化均在浏览器完成，数据存于 IndexedDB，论文文件不上传 | Transformers.js 端侧 embedding（Web Worker） |
 
@@ -37,7 +38,7 @@
 - **防注入**：论文内容一律视为数据，并拦截越权指令输入，防止 Prompt 注入。
 - **输出可控**：结构化输出按 Zod Schema 校验，失败自动重试；剔除模型编造的段落编号。
 - **可解释**：提示依据强度；原文中找不到依据时明确告知；Agent 的工具调用全程可见。
-- **兜底与密钥**：所有 AI 失败都有界面兜底，阅读不受影响；密钥只通过服务端环境变量配置。
+- **兜底与密钥**：所有 AI 失败都有界面兜底，阅读不受影响。网页填写的 Key 只存在本机浏览器；服务端密钥只从环境变量读取，仓库中不含任何密钥。
 
 ## 技术架构
 
@@ -50,8 +51,9 @@
 ├─ Web Worker + Transformers.js 端侧向量化            ├─ /api/query-plan   查询改写
 ├─ MiniSearch BM25 + 向量检索 + RRF 融合              ├─ /api/chat         带引用的流式问答
 ├─ Zustand 阅读器状态、翻译队列（当前页优先，并发 6）  ├─ /api/vision       图表 / 公式讲解（VLM）
-└─ WebGL2 首页背景：极光粒子星云 + 星图仪              └─ /api/agent        Agent（NDJSON 事件流）
-                                                          └─ MCP 客户端 ⇄ scholar-mcp（stdio）
+└─ WebGL2 首页背景：极光粒子星云 + 星图仪              ├─ /api/agent        Agent（NDJSON 事件流）
+                                                     │    └─ MCP 客户端 ⇄ scholar-mcp（stdio）
+                                                     └─ /api/check        测试模型连接
 packages/scholar-mcp：自研学术检索 MCP 服务器，提供 search_arxiv / get_paper / get_references / get_citations
 ```
 
@@ -62,27 +64,30 @@ packages/scholar-mcp：自研学术检索 MCP 服务器，提供 search_arxiv / 
 | vision | Qwen3-VL-Plus | 框选讲解 |
 | 端侧 | multilingual-e5-small（q8） | 段落与问题向量化 |
 
-所有模型都通过 OpenAI 兼容接口接入，改环境变量即可切换到 DeepSeek、通义千问、智谱等服务。
+所有模型都通过 OpenAI 兼容接口接入。在网页“模型设置”中或服务端环境变量里修改，即可切换到 DeepSeek、通义千问、智谱等服务。
 
 **技术栈**：Next.js 15 · React 19 · TypeScript · Tailwind CSS 4 · Vercel AI SDK 5 · MCP SDK · Zod · Dexie · Zustand · pdf.js · Transformers.js · MiniSearch · WebGL2
 
-## 本地运行
+## 快速开始
 
 需要 Node.js ≥ 18.18。
 
 ```bash
-npm run setup                                    # 安装依赖并构建 scholar-mcp
-cp apps/web/.env.example apps/web/.env.local     # 填入 LLM_API_KEY 等
-npm run dev                                      # http://localhost:3000
+git clone <仓库地址> paper-galaxy && cd paper-galaxy
+npm run setup        # 安装依赖并构建 scholar-mcp
+npm run dev          # 打开 http://localhost:3000
 ```
 
-打开首页后点“试读示例：BERT”即可体验，示例论文来自 ACL Anthology，采用 CC BY 4.0 许可。
+1. 点击右上角的齿轮图标，打开“模型设置”。选择服务商预设（阿里云百炼、DeepSeek、智谱、OpenAI，或任意 OpenAI 兼容接口），填写 API Key，再点“测试连接”。
+2. 点击“试读示例：BERT”或上传自己的论文 PDF。示例论文来自 ACL Anthology，采用 CC BY 4.0 许可。
+
+> 网页中填写的 Key **只保存在当前浏览器**（localStorage）。调用 AI 时，Key 随请求发给本站服务端，再转发给模型服务；服务端不保存也不打印。
 
 生产部署：
 
 ```bash
-npm run build --prefix apps/web
-npm run start --prefix apps/web
+npm run build
+npm run start        # 默认端口 3000，可置于 Nginx 反向代理之后
 ```
 
 学者 Agent 需要在服务端启动 Node 子进程（stdio MCP），推荐部署在云服务器或容器中。
@@ -93,13 +98,19 @@ npm run start --prefix apps/web
 HF_ENDPOINT=https://hf-mirror.com npm run download-model --prefix apps/web
 ```
 
-### 环境变量
+### 服务端默认配置（可选）
 
-模板见 [`apps/web/.env.example`](apps/web/.env.example)。`.env.local` 已加入 `.gitignore`，密钥不会进入仓库。
+如果要部署公共演示站，让访问者不填 Key 也能使用，可以配置服务端的默认模型：
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # 填写后重启
+```
+
+`.env.local` 已加入 `.gitignore`，不会被提交。网页中填写的配置优先，两者不会混用。
 
 | 变量 | 说明 |
 |---|---|
-| `LLM_API_KEY` | 大模型 API 密钥（必填） |
+| `LLM_API_KEY` | 默认模型的 API 密钥 |
 | `LLM_BASE_URL` | OpenAI 兼容接口地址，默认 DeepSeek |
 | `LLM_MODEL` | 主模型，默认 `deepseek-chat` |
 | `LLM_FAST_MODEL` | 翻译、改写、Agent 用的快速模型（可选） |
@@ -113,13 +124,13 @@ HF_ENDPOINT=https://hf-mirror.com npm run download-model --prefix apps/web
 
 ```
 apps/web/
-  app/                 页面（首页、/paper/[id]）与 7 个 API 路由
+  app/                 页面（首页、/paper/[id]）与 8 个 API 路由
   components/          home / reader / chat / scholar 组件，WebGL 背景
   lib/ai/              模型接入、全部 Prompt、安全策略
   lib/pdf/             PDF 解析、文档缓存、导入
   lib/rag/             端侧向量化、混合检索、论文库检索
   lib/hooks/           AI 预处理流水线、翻译队列
-  stores/              Zustand 状态
+  stores/              Zustand 状态（阅读器、模型设置）
   public/samples/      示例论文
 packages/scholar-mcp/  学术检索 MCP 服务器
 ```
