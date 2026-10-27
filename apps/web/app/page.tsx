@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChevronDown, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { GalaxyBackground } from "@/components/GalaxyBackground";
+import { NebulaBackground } from "@/components/NebulaBackground";
 import { SearchBox, SearchResults, useLibrarySearch } from "@/components/home/LibrarySearch";
 import { Brand } from "@/components/Logo";
 import { UploadDropzone } from "@/components/UploadDropzone";
@@ -17,9 +17,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-dvh">
-      <GalaxyBackground />
+      <NebulaBackground />
 
-      {/* 首屏：标题在上，星系居中，上传卡片落在星系下方 */}
+      {/* 首屏：星云铺满全屏，标题居上，上传卡片在下 */}
       <section className="relative z-10 flex min-h-[100dvh] flex-col">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
           <Brand />
