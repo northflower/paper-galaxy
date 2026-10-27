@@ -21,7 +21,7 @@ export function SettingsButton({ className }: { className?: string }) {
   return (
     <button
       aria-label="模型设置"
-      title={missing ? "还没有配置模型 API Key" : "模型设置"}
+      title={missing ? "还没有配置模型，点击填写" : "模型设置"}
       onClick={() => setOpen(true)}
       className={clsx("relative rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg", className)}
     >
