@@ -27,7 +27,7 @@
 ├─ IndexedDB（Dexie）论文/段落/向量/译文缓存        ├─ /api/trajectory   研究轨迹拆解
 ├─ Web Worker + Transformers.js 端侧向量化          ├─ /api/translate    流式翻译
 ├─ MiniSearch BM25 + 向量检索 + RRF 融合            ├─ /api/query-plan   查询改写
-├─ WebGL2 粒子星云（首页，鼠标推开并点亮粒子、点击涟漪）
+├─ WebGL2 粒子星图仪（首页：刻度轨道环、经纬星球、行星尾迹；鼠标连星成座、引力吸附粒子）
 └─ React 19 + Zustand + Tailwind 深色沉浸式界面       └─ /api/chat         带引用的流式问答
                                                      （Vercel AI SDK，OpenAI 兼容接口）
 packages/scholar-mcp：学术检索 MCP 服务器（arXiv / Semantic Scholar），/api/agent 以 stdio 方式连接
