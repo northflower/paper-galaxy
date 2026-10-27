@@ -22,7 +22,7 @@ const MODES: { value: ViewMode; label: string }[] = [
   { value: "translation", label: "译文" },
 ];
 
-export function PaperReader({ id }: { id: string }) {
+export function PaperReader({ id, focusRef }: { id: string; focusRef?: string }) {
   // 未找到时返回 null，与“加载中”的 undefined 区分
   const paper = useLiveQuery(() => db.papers.get(id).then((p) => p ?? null), [id]);
   const chunks = useLiveQuery(() => getChunks(id), [id]);
@@ -34,6 +34,15 @@ export function PaperReader({ id }: { id: string }) {
   const articleRef = useRef<HTMLElement>(null);
 
   useEffect(() => reset, [id, reset]);
+
+  // 从知识星系跳转过来时，定位并高亮对应段落
+  const loaded = !!paper && !!chunks;
+  const focus = useReader((s) => s.focus);
+  useEffect(() => {
+    if (!loaded || !focusRef) return;
+    const timer = setTimeout(() => focus([focusRef]), 300);
+    return () => clearTimeout(timer);
+  }, [loaded, focusRef, focus]);
 
   const matcher = useMemo(() => buildTermMatcher(paper?.glossary), [paper?.glossary]);
   // 索引只依赖段落文本，翻译、向量写回时不重建

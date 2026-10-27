@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookOpenText, Languages, MessagesSquare, Orbit, Trash2 } from "lucide-react";
+import { BookOpenText, Languages, MessagesSquare, Orbit, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { db, deletePaper } from "@/lib/db";
@@ -10,6 +10,7 @@ const FEATURES = [
   { icon: Orbit, title: "研究轨迹拆解", desc: "从问题、动机到方法、实验、结论，把论证链条连成星轨，点哪颗星跳到哪段原文" },
   { icon: Languages, title: "术语一致的双语对照", desc: "先抽取全文术语表，再逐段检索注入翻译，同一个术语全文只有一种译法" },
   { icon: MessagesSquare, title: "可溯源问答", desc: "混合检索 + 查询改写，每个回答都标注原文出处，没有依据就直说" },
+  { icon: Sparkles, title: "知识星系", desc: "所有论文的段落按语义化作三维星空，跨论文检索时，相关段落依次点亮" },
   { icon: BookOpenText, title: "本地优先", desc: "解析与向量化在浏览器端完成，论文数据保存在你自己的设备上" },
 ];
 
@@ -35,7 +36,15 @@ export default function HomePage() {
 
       {papers && papers.length > 0 && (
         <section className="mt-12">
-          <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-faint">我的星图</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-widest text-faint">我的星图</h2>
+            <Link
+              href="/galaxy"
+              className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-accent transition hover:border-line-strong"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> 进入知识星系
+            </Link>
+          </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {papers.map((p) => (
               <li key={p.id} className="glass group relative rounded-xl transition hover:border-line-strong">
@@ -62,7 +71,7 @@ export default function HomePage() {
 
       <section className="mt-16 grid gap-4 sm:grid-cols-2">
         {FEATURES.map(({ icon: Icon, title, desc }) => (
-          <div key={title} className="glass rounded-xl p-5">
+          <div key={title} className="glass rounded-xl p-5 sm:last:col-span-2">
             <Icon className="mb-3 h-5 w-5 text-accent" />
             <div className="font-medium">{title}</div>
             <div className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</div>
