@@ -22,6 +22,8 @@ interface Props {
   activeSet: Set<string>;
   night: boolean;
   translator: Translator;
+  /** 页面宽度相对阅读区的比例；大于 1 时阅读区横向滚动 */
+  zoom: number;
 }
 
 /** 段落在某一页上的一块矩形；boxIndex 用于把译文按面积分配到跨栏、跨页的各块 */
@@ -42,7 +44,7 @@ const PAPER = {
  * 译文页沿用原页面的画面，把正文段落的位置替换为译文，图表、公式、表格保持原样，
  * 与原文页逐段对应；悬停或点击任一侧，另一侧同步高亮。
  */
-export function PdfView({ paperId, file, chunks, mode, activeSet, night, translator }: Props) {
+export function PdfView({ paperId, file, chunks, mode, activeSet, night, translator, zoom }: Props) {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, transla
   if (error) return <p className="py-20 text-center text-sm text-red-300">PDF 加载失败：{error}</p>;
   if (!handle) {
     return (
-      <div className="mx-auto w-full max-w-[920px]">
+      <div className="mx-auto w-full max-w-[1100px]">
         <div className="skeleton aspect-[1/1.3] w-full rounded-sm" />
       </div>
     );
@@ -84,7 +86,12 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, transla
 
   const paper = night ? PAPER.night : PAPER.day;
   return (
-    <div className="space-y-8" onMouseLeave={() => setHovered(null)}>
+    <div
+      className="mx-auto space-y-6"
+      // 单页模式下 100% 时页面不宜过宽，限制在约 1100px 以内，再按缩放比例放大
+      style={{ width: `${zoom * 100}%`, maxWidth: mode === "bilingual" ? undefined : zoom * 1100 }}
+      onMouseLeave={() => setHovered(null)}
+    >
       {handle.sizes.map((size, i) => {
         const page = i + 1;
         const common = {
@@ -101,7 +108,7 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, transla
         return (
           <div
             key={page}
-            className={clsx(mode === "bilingual" ? "grid items-start gap-4 lg:grid-cols-2" : "mx-auto w-full max-w-[920px]")}
+            className={clsx(mode === "bilingual" ? "grid items-start gap-3 lg:grid-cols-2" : "w-full")}
           >
             {mode !== "translation" && <PdfPage {...common} variant="original" />}
             {mode !== "original" && <PdfPage {...common} variant="translated" translator={translator} />}

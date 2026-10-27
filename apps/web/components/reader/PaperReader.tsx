@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ListTree, MessagesSquare, Moon, PanelRight, Sun, X } from "lucide-react";
+import { ArrowLeft, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
@@ -37,8 +37,23 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const [panelOpen, setPanelOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [panelHidden, setPanelHidden] = useState(false);
-  const [railHidden, setRailHidden] = useState(false);
+  // 左栏默认收起，把宽度留给 PDF；需要时从顶栏打开
+  const [railHidden, setRailHidden] = useState(true);
   const articleRef = useRef<HTMLElement>(null);
+  // 缩放：1 = 页面铺满阅读区宽度；可用按钮或 Ctrl + 滚轮调整
+  const [zoom, setZoom] = useState(1);
+  const zoomBy = (delta: number) => setZoom((z) => Math.round(Math.min(2.5, Math.max(0.5, z + delta)) * 10) / 10);
+  useEffect(() => {
+    const el = articleRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom((z) => Math.round(Math.min(2.5, Math.max(0.5, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))) * 100) / 100);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
   // 夜间纸张：把 PDF 页面反色成深色，记在本机
   const [night, setNight] = useState(true);
   useEffect(() => {
@@ -120,7 +135,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   return (
     <div className="min-h-dvh">
       <header className="glass sticky top-0 z-30 border-x-0 border-t-0">
-        <div className="mx-auto flex h-14 max-w-[1720px] items-center gap-1.5 px-3 sm:gap-2 sm:px-5">
+        <div className="flex h-14 items-center gap-1.5 px-3 sm:gap-2 sm:px-5">
           <Link href="/" aria-label="返回论文库" className="rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -151,6 +166,23 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
             />
           </div>
 
+          {paper.file && (
+            <div className="hidden items-center rounded-lg bg-white/[0.04] p-0.5 text-xs sm:flex">
+              <button aria-label="缩小" onClick={() => zoomBy(-0.1)} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.08] hover:text-fg">
+                <Minus className="h-3.5 w-3.5" />
+              </button>
+              <button
+                title="适应宽度"
+                onClick={() => setZoom(1)}
+                className="min-w-[3.25rem] rounded-md px-1 py-1 text-center tabular-nums text-muted transition hover:bg-white/[0.08] hover:text-fg"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button aria-label="放大" onClick={() => zoomBy(0.1)} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.08] hover:text-fg">
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
           <div role="radiogroup" aria-label="阅读模式" className="flex shrink-0 rounded-lg bg-white/[0.04] p-0.5 text-xs">
             {MODES.map((m) => (
               <button
@@ -192,7 +224,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
 
       <div
         className={clsx(
-          "mx-auto grid max-w-[1720px] gap-5 px-3 pb-24 pt-5 sm:px-5",
+          "grid gap-4 px-3 pb-24 pt-4 sm:px-4",
           !panelHidden && "lg:grid-cols-[minmax(0,1fr)_380px]",
           // 桌面端左右两栏都可收起，把空间让给 PDF 页面
           railHidden
@@ -226,8 +258,9 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
         </aside>
 
         {paper.file ? (
-          <article ref={articleRef} className="min-w-0">
+          <article ref={articleRef} className="scrollbar-thin min-w-0 overflow-x-auto">
             <PdfView
+              zoom={zoom}
               paperId={paper.id}
               file={paper.file}
               chunks={body}
