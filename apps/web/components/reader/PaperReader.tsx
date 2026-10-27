@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, Sun, X } from "lucide-react";
+import { ArrowLeft, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, ScanSearch, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
@@ -32,7 +32,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   useChunkBoxes(paper ?? undefined, chunks);
   const glossaryReady = analysis.glossary.status === "done" || analysis.glossary.status === "error";
   const translator = useTranslator(paper?.glossary, glossaryReady);
-  const { viewMode, setViewMode, sideTab, setSideTab, activeRefs, reset } = useReader();
+  const { viewMode, setViewMode, sideTab, setSideTab, activeRefs, reset, regionMode, setRegionMode } = useReader();
   // 小屏为抽屉；桌面端 AI 面板可收起
   const [panelOpen, setPanelOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -89,6 +89,22 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const index = useMemo(() => (chunks ? buildIndex(chunks) : null), [id, chunkCount]);
   const refMap = useMemo(() => new Map((chunks ?? []).map((c) => [c.ref, c])), [chunks]);
   const activeSet = useMemo(() => new Set(activeRefs), [activeRefs]);
+
+  // 框选模式下按 Esc 退出
+  useEffect(() => {
+    if (!regionMode) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setRegionMode(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [regionMode, setRegionMode]);
+
+  // 框选讲解发起后，同样需要问答面板可见
+  const pendingVision = useReader((s) => s.pendingVision);
+  useEffect(() => {
+    if (!pendingVision) return;
+    setPanelOpen(true);
+    setPanelHidden(false);
+  }, [pendingVision]);
 
   // 从脉络、术语、划词等入口发起提问时，确保问答面板可见
   const pendingQuestion = useReader((s) => s.pendingQuestion);
@@ -166,6 +182,19 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
             />
           </div>
 
+          {paper.file && (
+            <button
+              onClick={() => setRegionMode(!regionMode)}
+              title="在 PDF 上框选图表、公式或表格，让 AI 讲解"
+              className={clsx(
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition",
+                regionMode ? "bg-accent/20 text-fg ring-1 ring-accent/50" : "text-muted hover:bg-white/5 hover:text-fg",
+              )}
+            >
+              <ScanSearch className="h-4 w-4" />
+              <span className="hidden md:inline">框选讲解</span>
+            </button>
+          )}
           {paper.file && (
             <div className="hidden items-center rounded-lg bg-white/[0.04] p-0.5 text-xs sm:flex">
               <button aria-label="缩小" onClick={() => zoomBy(-0.1)} className="rounded-md p-1.5 text-muted transition hover:bg-white/[0.08] hover:text-fg">
@@ -356,6 +385,15 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
       >
         <MessagesSquare className="h-4 w-4 text-accent" /> 问 AI
       </button>
+      {regionMode && (
+        <div className="glass rise fixed left-1/2 top-[68px] z-40 flex -translate-x-1/2 items-center gap-3 rounded-full px-4 py-2 text-[13px] shadow-xl">
+          <ScanSearch className="h-4 w-4 text-accent" />
+          在页面上拖动，框选图表、公式或表格
+          <button onClick={() => setRegionMode(false)} className="text-faint hover:text-fg">
+            取消 <span className="font-mono text-[11px]">Esc</span>
+          </button>
+        </div>
+      )}
       <SelectionToolbar containerRef={articleRef} glossary={paper.glossary ?? []} />
     </div>
   );

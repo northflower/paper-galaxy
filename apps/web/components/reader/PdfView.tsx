@@ -153,6 +153,7 @@ const PdfPage = memo(function PdfPage({
   const [scale, setScale] = useState(0);
   const [visible, setVisible] = useState(false);
   const translated = variant === "translated";
+  const regionMode = useReader((st) => st.regionMode);
 
   // 宽度随布局变化，缩放比 = 显示宽度 / PDF 页宽
   useEffect(() => {
@@ -291,6 +292,7 @@ const PdfPage = memo(function PdfPage({
           })}
 
         {!translated && <div ref={textRef} className="textLayer" onMouseMove={(e) => hoverAt(e, wrapRef, scale, marks, onHover)} />}
+        {regionMode && scale > 0 && <RegionSelector canvasRef={canvasRef} scale={scale} page={page} marks={marks} />}
       </div>
       <figcaption className="mt-2 text-center font-mono text-[11px] text-faint">
         {page}
@@ -299,6 +301,89 @@ const PdfPage = memo(function PdfPage({
     </figure>
   );
 });
+
+/**
+ * 框选：在页面上拖出矩形，从画布截取该区域（画布像素是原始颜色，不受夜间反色影响），
+ * 连同与之重叠的原文段落一起交给问答面板，由视觉模型讲解
+ */
+function RegionSelector({
+  canvasRef,
+  scale,
+  page,
+  marks,
+}: {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  scale: number;
+  page: number;
+  marks: Mark[];
+}) {
+  const [rect, setRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const askVision = useReader((s) => s.askVision);
+  const layerRef = useRef<HTMLDivElement>(null);
+
+  const point = (e: React.PointerEvent) => {
+    const r = layerRef.current!.getBoundingClientRect();
+    return { x: Math.min(Math.max(e.clientX - r.left, 0), r.width), y: Math.min(Math.max(e.clientY - r.top, 0), r.height) };
+  };
+
+  const finish = () => {
+    const canvas = canvasRef.current;
+    if (!rect || !canvas) return setRect(null);
+    const x = Math.min(rect.x0, rect.x1);
+    const y = Math.min(rect.y0, rect.y1);
+    const w = Math.abs(rect.x1 - rect.x0);
+    const h = Math.abs(rect.y1 - rect.y0);
+    setRect(null);
+    if (w < 16 || h < 16 || !canvas.width) return;
+    // CSS 像素 → 画布像素，输出长边不超过 1280px
+    const ratio = canvas.width / canvas.clientWidth;
+    const fit = Math.min(1, 1280 / Math.max(w * ratio, h * ratio));
+    const out = document.createElement("canvas");
+    out.width = Math.round(w * ratio * fit);
+    out.height = Math.round(h * ratio * fit);
+    out.getContext("2d")!.drawImage(canvas, x * ratio, y * ratio, w * ratio, h * ratio, 0, 0, out.width, out.height);
+    // 与框选区域重叠的段落作为上下文
+    const bx = { x: x / scale, y: y / scale, w: w / scale, h: h / scale };
+    const seen = new Set<string>();
+    const context = marks
+      .filter(({ box }) => box.x < bx.x + bx.w && box.x + box.w > bx.x && box.y < bx.y + bx.h + 40 && box.y + box.h > bx.y - 40)
+      .filter(({ chunk }) => !seen.has(chunk.ref) && seen.add(chunk.ref))
+      .map(({ chunk }) => chunk.text)
+      .join("\n");
+    askVision({ image: out.toDataURL("image/jpeg", 0.9), page, context });
+  };
+
+  const sel = rect && {
+    left: Math.min(rect.x0, rect.x1),
+    top: Math.min(rect.y0, rect.y1),
+    width: Math.abs(rect.x1 - rect.x0),
+    height: Math.abs(rect.y1 - rect.y0),
+  };
+  return (
+    <div
+      ref={layerRef}
+      className="absolute inset-0 z-20 cursor-crosshair bg-[rgba(99,115,255,0.04)]"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const p = point(e);
+        setRect({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+      }}
+      onPointerMove={(e) => {
+        if (!rect) return;
+        const p = point(e);
+        setRect((r) => r && { ...r, x1: p.x, y1: p.y });
+      }}
+      onPointerUp={finish}
+    >
+      {sel && (
+        <div
+          className="absolute rounded-sm border border-[rgba(140,155,255,0.95)] bg-[rgba(99,115,255,0.12)] shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
+          style={sel}
+        />
+      )}
+    </div>
+  );
+}
 
 function hoverAt(
   e: React.MouseEvent,

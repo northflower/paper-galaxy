@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "ai": "^5.0.0",
     "clsx": "^2.1.1",
     "dexie": "^4.0.11",

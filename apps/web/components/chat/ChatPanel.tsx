@@ -10,7 +10,7 @@ import { chunkLabel } from "@/lib/db";
 import { hybridSearch, type SearchResult } from "@/lib/rag/search";
 import { postJson, postStream, readTextStream } from "@/lib/stream";
 import type { Chunk, GlossaryTerm, QueryPlan } from "@/lib/types";
-import { useReader } from "@/stores/reader";
+import { useReader, type VisionRequest } from "@/stores/reader";
 
 type StepState = "running" | "done" | "skipped";
 
@@ -18,6 +18,8 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 框选讲解时附带的区域截图 */
+  image?: string;
   steps?: { label: string; state: StepState; detail?: string }[];
   retrieval?: SearchResult;
   status?: "working" | "streaming" | "done" | "error";
@@ -50,7 +52,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const chunksRef = useRef(chunks);
   chunksRef.current = chunks;
-  const { focus, pendingQuestion, consumeQuestion } = useReader();
+  const { focus, pendingQuestion, consumeQuestion, pendingVision, consumeVision } = useReader();
 
   const patch = (id: string, fn: (m: Message) => Message) =>
     setMessages((ms) => ms.map((m) => (m.id === id ? fn(m) : m)));
@@ -156,6 +158,56 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
     [busy, messages, title, index, glossary, focus],
   );
 
+  // 多模态讲解：框选的图表 / 公式截图 + 本页原文 → 视觉模型流式讲解
+  const explainRegion = useCallback(
+    async (req: VisionRequest) => {
+      if (busy) return;
+      setBusy(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const aid = crypto.randomUUID();
+      setMessages((ms) => [
+        ...ms,
+        { id: crypto.randomUUID(), role: "user", content: `讲解第 ${req.page} 页框选的内容`, image: req.image },
+        {
+          id: aid,
+          role: "assistant",
+          content: "",
+          status: "working",
+          steps: [{ label: "视觉模型识别图像", state: "running", detail: req.context ? "结合本页原文" : undefined }],
+        },
+      ]);
+      try {
+        const res = await postStream("/api/vision", { image: req.image, page: req.page, title, context: req.context }, controller.signal);
+        await readTextStream(
+          res,
+          (text) => patch(aid, (m) => ({ ...m, content: text, status: "streaming" })),
+          controller.signal,
+        );
+        patch(aid, (m) => ({ ...m, status: "done", steps: m.steps!.map((s) => ({ ...s, state: "done" })) }));
+      } catch (err) {
+        const aborted = controller.signal.aborted;
+        patch(aid, (m) => ({
+          ...m,
+          status: aborted ? "done" : "error",
+          content: m.content || (aborted ? "（已停止）" : `出错了：${(err as Error).message}`),
+          steps: m.steps?.map((s) => (s.state === "running" ? { ...s, state: "skipped" } : s)),
+        }));
+      } finally {
+        setBusy(false);
+        abortRef.current = null;
+      }
+    },
+    [busy, title],
+  );
+
+  useEffect(() => {
+    if (pendingVision && !busy) {
+      const v = consumeVision();
+      if (v) void explainRegion(v);
+    }
+  }, [pendingVision, busy, consumeVision, explainRegion]);
+
   // 接收来自轨迹节点、划词等入口的提问
   useEffect(() => {
     if (pendingQuestion && !busy) {
@@ -194,6 +246,10 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="ml-10 rounded-2xl rounded-br-md bg-white/[0.07] px-3.5 py-2.5 text-[13.5px] leading-relaxed">
+              {m.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={m.image} alt="框选区域" className="mb-2 max-h-48 w-full rounded-lg bg-white object-contain" />
+              )}
               {m.content}
             </div>
           ) : (

@@ -6,13 +6,27 @@ export class MissingKeyError extends Error {
   }
 }
 
+export class MissingVisionModelError extends MissingKeyError {
+  constructor() {
+    super();
+    this.message = "服务端未配置视觉模型 LLM_VISION_MODEL，暂时无法讲解图表";
+  }
+}
+
 /**
  * 统一走 OpenAI 兼容接口，DeepSeek / 通义千问 / 智谱 等只需改环境变量即可切换。
- * chat：问答、轨迹拆解等需要推理的任务；fast：翻译、检索改写等高频任务。
+ * chat：问答、轨迹拆解、Agent 等需要推理的任务；fast：翻译、检索改写等高频任务；vision：图表讲解。
  */
-export function getModel(kind: "chat" | "fast" = "chat") {
+export function getModel(kind: "chat" | "fast" | "vision" = "chat") {
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) throw new MissingKeyError();
+  if (kind === "vision") {
+    const visionModel = process.env.LLM_VISION_MODEL;
+    if (!visionModel) throw new MissingVisionModelError();
+    return createOpenAICompatible({ name: "llm", baseURL: process.env.LLM_BASE_URL ?? "https://api.deepseek.com/v1", apiKey })(
+      visionModel,
+    );
+  }
 
   // 额外请求参数，例如百炼上关闭思考：LLM_FAST_EXTRA_BODY={"enable_thinking":false}
   const extra = parseExtraBody(kind === "chat" ? process.env.LLM_EXTRA_BODY : process.env.LLM_FAST_EXTRA_BODY);
