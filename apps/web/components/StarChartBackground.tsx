@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createNebulaLayer } from "./nebulaLayer";
 
 /**
- * 首页全屏背景：“星图仪”。
+ * 首页全屏背景：极光星云 + “星图仪”。
+ * 底层是流动的极光粒子星云（见 nebulaLayer），前景是一台星图仪：
  * 以古代星盘（astrolabe）为灵感，用数万颗粒子构成一台缓慢运转的天体仪：
  * 带刻度的倾斜轨道环、经纬线星球、金色核心、拖着尾迹沿轨道运行的行星，外围是稀疏的星尘。
  * 远景是一张星图：亮星之间以细线连成星座；鼠标划过时，附近的星星被即时连成新的星座，
@@ -26,6 +28,7 @@ export function StarChartBackground() {
     if (!points || !lines) return;
 
     const { data, count, stars } = buildScene(mobile ? 0.45 : 1);
+    const nebula = createNebulaLayer(gl, createProgram, mobile ? 26000 : 72000);
 
     // 粒子缓冲
     const pointVao = gl.createVertexArray();
@@ -139,6 +142,17 @@ export function StarChartBackground() {
 
       gl.clear(gl.COLOR_BUFFER_BIT);
 
+      // 0. 底层极光星云
+      nebula?.draw({
+        time: t,
+        w: s.w,
+        h: s.h,
+        dpr: s.dpr,
+        mouse: [m.x, m.y, m.on],
+        parallax: [s.parallax.x, s.parallax.y],
+        ripple: [s.ripple.x, s.ripple.y, s.ripple.t + 40],
+      });
+
       // 1. 星座连线
       let n = 0;
       const push = (ax: number, ay: number, bx: number, by: number, alpha: number) => {
@@ -219,6 +233,7 @@ export function StarChartBackground() {
       gl.deleteVertexArray(lineVao);
       gl.deleteProgram(points);
       gl.deleteProgram(lines);
+      nebula?.dispose();
     };
   }, []);
 
