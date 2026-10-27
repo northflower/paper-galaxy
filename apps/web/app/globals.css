@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/* 星系主题设计令牌 */
+:root {
+  --bg: #05060f;
+  --bg-elev: rgba(17, 20, 40, 0.72);
+  --bg-elev-strong: rgba(22, 26, 52, 0.92);
+  --border: rgba(148, 163, 255, 0.16);
+  --border-strong: rgba(148, 163, 255, 0.32);
+  --fg: #e6e8ff;
+  --fg-muted: #9aa0c7;
+  --fg-faint: #6a7099;
+  --accent: #8b9dff;
+  --accent-2: #d98bff;
+  --glow: rgba(139, 157, 255, 0.45);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-elev-strong: var(--bg-elev-strong);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Source Serif Pro", "Noto Serif SC", Georgia, serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+::selection {
+  background: rgba(139, 157, 255, 0.35);
+}
+
+/* 玻璃拟态面板 */
+.glass {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, #c7d0ff 0%, var(--accent) 40%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 被轨迹节点或引用定位到的段落 */
+.chunk-active {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px var(--glow), 0 0 32px -8px var(--glow);
+  background: rgba(139, 157, 255, 0.07);
+}
+
+.term {
+  border-bottom: 1px dashed rgba(217, 139, 255, 0.6);
+  cursor: help;
+}
+
+.caret::after {
+  content: "▍";
+  margin-left: 2px;
+  animation: blink 1s steps(2) infinite;
+  color: var(--accent);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 255, 0.25) transparent;
+}
+
+/* 回答 Markdown 排版 */
+.prose-answer p {
+  margin: 0.4em 0;
+}
+.prose-answer ul,
+.prose-answer ol {
+  padding-left: 1.2em;
+  margin: 0.4em 0;
+}
+.prose-answer ul {
+  list-style: disc;
+}
+.prose-answer ol {
+  list-style: decimal;
+}
+.prose-answer code {
+  background: rgba(139, 157, 255, 0.12);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.prose-answer strong {
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
