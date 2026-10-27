@@ -4,11 +4,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "论文星图 PaperGalaxy",
-  description: "AI 驱动的论文研读平台：研究轨迹拆解、术语一致的双语对照、可溯源问答",
+  description: "AI 论文阅读器：双语对照翻译、论文脉络解读、可溯源问答",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#05060f",
+  themeColor: "#07080c",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

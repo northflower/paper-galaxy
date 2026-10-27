@@ -1,12 +1,11 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, BookOpen, Cpu, Languages, MessagesSquare, X } from "lucide-react";
+import { ArrowLeft, ListTree, MessagesSquare, PanelRight, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { StarTrack } from "@/components/trajectory/StarTrack";
 import { chunkLabel, db, getChunks } from "@/lib/db";
 import { usePaperAnalysis } from "@/lib/hooks/usePaperAnalysis";
 import { useTranslator } from "@/lib/hooks/useTranslator";
@@ -14,7 +13,8 @@ import { buildIndex } from "@/lib/rag/search";
 import { useReader, type ViewMode } from "@/stores/reader";
 import { buildTermMatcher, ChunkRow } from "./ChunkRow";
 import { GlossaryPanel } from "./GlossaryPanel";
-import { SelectionAsk } from "./SelectionAsk";
+import { PaperOutline } from "./PaperOutline";
+import { SelectionToolbar } from "./SelectionToolbar";
 
 const MODES: { value: ViewMode; label: string }[] = [
   { value: "bilingual", label: "对照" },
@@ -30,12 +30,15 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const glossaryReady = analysis.glossary.status === "done" || analysis.glossary.status === "error";
   const translator = useTranslator(paper?.glossary, glossaryReady);
   const { viewMode, setViewMode, sideTab, setSideTab, activeRefs, reset } = useReader();
+  // 小屏为抽屉；桌面端 AI 面板可收起
   const [panelOpen, setPanelOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [panelHidden, setPanelHidden] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
 
   useEffect(() => reset, [id, reset]);
 
-  // 从知识星系跳转过来时，定位并高亮对应段落
+  // 从论文库检索结果跳转过来时，定位并高亮对应段落
   const loaded = !!paper && !!chunks;
   const focus = useReader((s) => s.focus);
   useEffect(() => {
@@ -52,21 +55,24 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   const refMap = useMemo(() => new Map((chunks ?? []).map((c) => [c.ref, c])), [chunks]);
   const activeSet = useMemo(() => new Set(activeRefs), [activeRefs]);
 
-  // 移动端：从轨迹或划词发起提问时自动打开面板
+  // 从脉络、术语、划词等入口发起提问时，确保问答面板可见
   const pendingQuestion = useReader((s) => s.pendingQuestion);
   useEffect(() => {
-    if (pendingQuestion) setPanelOpen(true);
+    if (!pendingQuestion) return;
+    setPanelOpen(true);
+    setPanelHidden(false);
+    setOutlineOpen(false);
   }, [pendingQuestion]);
 
   if (paper === undefined || chunks === undefined) {
-    return <div className="flex min-h-dvh items-center justify-center text-muted">正在载入论文…</div>;
+    return <div className="flex min-h-dvh items-center justify-center text-sm text-faint">正在载入…</div>;
   }
   if (paper === null) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-muted">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-sm text-muted">
         没有找到这篇论文
         <Link href="/" className="text-accent hover:underline">
-          返回首页
+          返回论文库
         </Link>
       </div>
     );
@@ -74,38 +80,58 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
 
   const body = chunks.filter((c) => c.kind !== "reference");
   const references = chunks.filter((c) => c.kind === "reference");
+  const headings = body.filter((c) => c.kind === "heading");
   const translated = body.filter((c) => c.kind === "paragraph" && c.translation).length;
+  const progress = analysis.paragraphCount ? Math.round((translated / analysis.paragraphCount) * 100) : 0;
   const labelOf = (ref: string) => {
     const c = refMap.get(ref);
     return c ? chunkLabel(c) : ref;
   };
+  const embed = analysis.embedding;
+  const embedLabel =
+    embed.status === "running"
+      ? `正在建立语义索引 ${Math.round(embed.progress)}%`
+      : embed.status === "done"
+        ? "语义检索就绪"
+        : embed.status === "error"
+          ? "语义检索不可用，问答使用关键词检索"
+          : "准备建立语义索引";
 
   return (
     <div className="min-h-dvh">
       <header className="glass sticky top-0 z-30 border-x-0 border-t-0">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-2.5">
-          <Link href="/" aria-label="返回" className="rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-fg">
+        <div className="mx-auto flex h-14 max-w-[1720px] items-center gap-1.5 px-3 sm:gap-2 sm:px-5">
+          <Link href="/" aria-label="返回论文库" className="rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{paper.title}</div>
-            <div className="flex flex-wrap gap-x-3 text-[11px] text-faint">
-              <span className="flex items-center gap-1">
-                <Languages className="h-3 w-3" /> 已译 {translated}/{analysis.paragraphCount}
-              </span>
-              <span className="flex items-center gap-1" title={analysis.embedding.error}>
-                <Cpu className="h-3 w-3" />
-                {analysis.embedding.status === "running"
-                  ? `端侧向量化 ${Math.round(analysis.embedding.progress)}%`
-                  : analysis.embedding.status === "done"
-                    ? "向量检索就绪"
-                    : analysis.embedding.status === "error"
-                      ? "向量检索不可用，已降级为关键词检索"
-                      : "准备向量化"}
-              </span>
-            </div>
+          <button
+            aria-label="论文脉络与目录"
+            onClick={() => setOutlineOpen(true)}
+            className="rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg xl:hidden"
+          >
+            <ListTree className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1 px-1 text-sm font-medium text-fg/90">
+            <div className="truncate">{paper.title}</div>
           </div>
-          <div role="radiogroup" aria-label="阅读模式" className="flex rounded-lg border border-line p-0.5 text-xs">
+
+          <div className="hidden items-center gap-3 pr-2 text-xs text-faint md:flex">
+            <span title={`已翻译 ${translated}/${analysis.paragraphCount} 段`} className="flex items-center gap-2">
+              <span className="relative h-1 w-16 overflow-hidden rounded-full bg-white/[0.06]">
+                <span className="absolute inset-y-0 left-0 rounded-full bg-accent/70 transition-all" style={{ width: `${progress}%` }} />
+              </span>
+              <span className="tabular-nums">译 {progress}%</span>
+            </span>
+            <span
+              title={embed.error ?? embedLabel}
+              className={clsx(
+                "h-1.5 w-1.5 rounded-full",
+                embed.status === "done" ? "bg-emerald-400/80" : embed.status === "error" ? "bg-amber-400/80" : "animate-pulse bg-white/30",
+              )}
+            />
+          </div>
+
+          <div role="radiogroup" aria-label="阅读模式" className="flex shrink-0 rounded-lg bg-white/[0.04] p-0.5 text-xs">
             {MODES.map((m) => (
               <button
                 key={m.value}
@@ -113,29 +139,55 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
                 aria-checked={viewMode === m.value}
                 onClick={() => setViewMode(m.value)}
                 className={clsx(
-                  "rounded-md px-2.5 py-1 transition",
-                  viewMode === m.value ? "bg-accent/20 text-fg" : "text-muted hover:text-fg",
+                  "rounded-md px-2.5 py-1 transition sm:px-3",
+                  viewMode === m.value ? "bg-white/[0.1] text-fg shadow-sm" : "text-faint hover:text-muted",
                 )}
               >
                 {m.label}
               </button>
             ))}
           </div>
+          <button
+            aria-label={panelHidden ? "展开 AI 面板" : "收起 AI 面板"}
+            onClick={() => setPanelHidden((v) => !v)}
+            className={clsx(
+              "hidden rounded-lg p-2 transition hover:bg-white/5 hover:text-fg lg:block",
+              panelHidden ? "text-faint" : "text-muted",
+            )}
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-4">
-        <StarTrack
-          nodes={paper.trajectory}
-          oneLiner={paper.oneLiner}
-          status={analysis.trajectory.status}
-          error={analysis.trajectory.error}
-          labelOf={labelOf}
-          onRetry={analysis.retryTrajectory}
-        />
+      <div
+        className={clsx(
+          "mx-auto grid max-w-[1720px] gap-5 px-3 pb-24 pt-5 sm:px-5",
+          panelHidden ? "xl:grid-cols-[248px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[248px_minmax(0,1fr)_380px]",
+        )}
+      >
+        {/* 左栏：脉络 / 目录。xl 常驻，小屏为抽屉 */}
+        {outlineOpen && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm xl:hidden" onClick={() => setOutlineOpen(false)} />}
+        <aside
+          className={clsx(
+            "xl:sticky xl:top-[76px] xl:block xl:h-[calc(100dvh-96px)] xl:pt-1",
+            outlineOpen ? "panel fixed inset-y-0 left-0 z-50 w-[300px] p-4 pt-5 xl:static xl:w-auto xl:border-0 xl:bg-none xl:p-0 xl:shadow-none" : "hidden",
+          )}
+        >
+          <PaperOutline
+            nodes={paper.trajectory}
+            oneLiner={paper.oneLiner}
+            status={analysis.trajectory.status}
+            error={analysis.trajectory.error}
+            headings={headings}
+            labelOf={labelOf}
+            onRetry={analysis.retryTrajectory}
+            onNavigate={() => setOutlineOpen(false)}
+          />
+        </aside>
 
-        <div className="mt-4 gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
-          <article ref={articleRef} className="glass rounded-2xl px-2 py-6 sm:px-6">
+        <article ref={articleRef} className="panel min-w-0 rounded-2xl px-3 py-8 sm:px-10 sm:py-12">
+          <div className={clsx("mx-auto", viewMode === "bilingual" ? "max-w-[1100px]" : "max-w-[720px]")}>
             {body.map((c) => (
               <ChunkRow
                 key={c.id}
@@ -149,74 +201,76 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               />
             ))}
             {references.length > 0 && (
-              <details className="mx-3 mt-10 text-sm text-muted">
-                <summary className="cursor-pointer select-none text-faint hover:text-fg">参考文献（{references.length} 条）</summary>
-                <ol className="mt-3 space-y-2 font-serif text-xs leading-relaxed">
+              <details className="mt-14 border-t border-line pt-6 text-sm text-muted">
+                <summary className="cursor-pointer select-none text-faint transition hover:text-fg">参考文献 · {references.length}</summary>
+                <ol className="mt-4 space-y-2 font-serif text-[13px] leading-relaxed">
                   {references.map((r) => (
                     <li key={r.id}>{r.text}</li>
                   ))}
                 </ol>
               </details>
             )}
-          </article>
+          </div>
+        </article>
 
-          <aside
-            className={clsx(
-              "glass z-40 flex flex-col overflow-hidden",
-              "max-lg:fixed max-lg:inset-0 max-lg:rounded-none max-lg:bg-elev-strong",
-              "lg:sticky lg:top-[72px] lg:h-[calc(100dvh-88px)] lg:rounded-2xl",
-              !panelOpen && "max-lg:hidden",
-            )}
-          >
-            <div className="flex items-center border-b border-line px-2">
+        <aside
+          className={clsx(
+            "panel z-40 flex flex-col overflow-hidden",
+            "max-lg:fixed max-lg:inset-0 max-lg:rounded-none",
+            "lg:sticky lg:top-[76px] lg:h-[calc(100dvh-96px)] lg:rounded-2xl",
+            !panelOpen && "max-lg:hidden",
+            panelHidden && "lg:hidden",
+          )}
+        >
+          <div className="flex items-center gap-2 p-3">
+            <div className="flex flex-1 gap-1 rounded-lg bg-white/[0.03] p-0.5 text-xs">
               {(
                 [
-                  ["chat", "问答", MessagesSquare],
-                  ["glossary", "术语表", BookOpen],
+                  ["chat", "问答"],
+                  ["glossary", "术语"],
                 ] as const
-              ).map(([tab, label, Icon]) => (
+              ).map(([tab, label]) => (
                 <button
                   key={tab}
                   onClick={() => setSideTab(tab)}
                   className={clsx(
-                    "flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm transition",
-                    sideTab === tab ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg",
+                    "flex-1 rounded-md py-1.5 transition",
+                    sideTab === tab ? "bg-white/[0.08] text-fg shadow-sm" : "text-faint hover:text-muted",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
                   {label}
-                  {tab === "glossary" && paper.glossary && <span className="text-xs text-faint">{paper.glossary.length}</span>}
+                  {tab === "glossary" && paper.glossary && <span className="ml-1 text-faint">{paper.glossary.length}</span>}
                 </button>
               ))}
-              <button aria-label="关闭面板" onClick={() => setPanelOpen(false)} className="ml-auto p-2 text-muted lg:hidden">
-                <X className="h-5 w-5" />
-              </button>
             </div>
-            <div className="min-h-0 flex-1">
-              {/* 用 hidden 而非条件渲染，切换标签时保留对话记录 */}
-              <div className={clsx("h-full", sideTab !== "chat" && "hidden")}>
-                {index && <ChatPanel title={paper.title} chunks={chunks} index={index} glossary={paper.glossary ?? []} />}
-              </div>
-              <div className={clsx("h-full", sideTab !== "glossary" && "hidden")}>
-                <GlossaryPanel
-                  terms={paper.glossary}
-                  status={analysis.glossary.status}
-                  error={analysis.glossary.error}
-                  onRetry={analysis.retryGlossary}
-                />
-              </div>
+            <button aria-label="关闭面板" onClick={() => setPanelOpen(false)} className="p-1.5 text-muted lg:hidden">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 border-t border-line">
+            {/* 用 hidden 而非条件渲染，切换标签时保留对话记录 */}
+            <div className={clsx("h-full", sideTab !== "chat" && "hidden")}>
+              {index && <ChatPanel title={paper.title} chunks={chunks} index={index} glossary={paper.glossary ?? []} />}
             </div>
-          </aside>
-        </div>
+            <div className={clsx("h-full", sideTab !== "glossary" && "hidden")}>
+              <GlossaryPanel
+                terms={paper.glossary}
+                status={analysis.glossary.status}
+                error={analysis.glossary.error}
+                onRetry={analysis.retryGlossary}
+              />
+            </div>
+          </div>
+        </aside>
       </div>
 
       <button
         onClick={() => setPanelOpen(true)}
-        className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-medium text-[#0b0d1f] shadow-[0_0_32px_-4px_var(--glow)] lg:hidden"
+        className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-[#171a26]/90 px-4 py-3 text-sm font-medium text-fg shadow-[0_12px_40px_-8px_rgba(0,0,0,0.8)] backdrop-blur lg:hidden"
       >
-        <MessagesSquare className="h-4 w-4" /> 问 AI
+        <MessagesSquare className="h-4 w-4 text-accent" /> 问 AI
       </button>
-      <SelectionAsk containerRef={articleRef} />
+      <SelectionToolbar containerRef={articleRef} glossary={paper.glossary ?? []} />
     </div>
   );
 }

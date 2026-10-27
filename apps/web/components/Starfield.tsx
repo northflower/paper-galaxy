@@ -37,14 +37,14 @@ export function Starfield() {
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.round((w * h) / 4200);
+      const count = Math.round((w * h) / 6500);
       stars = Array.from({ length: count }, () => ({
         x: Math.random() * w,
         y: Math.random() * h,
         z: Math.random() ** 2,
         r: Math.random() * 1.2 + 0.2,
         phase: Math.random() * Math.PI * 2,
-        hue: 220 + Math.random() * 80,
+        hue: 225 + Math.random() * 40,
       }));
     };
 
@@ -58,9 +58,9 @@ export function Starfield() {
         const x = (s.x + drift + pointer.x * s.z * 18 + w) % w;
         const y = s.y + pointer.y * s.z * 18;
         const twinkle = reduced ? 1 : 0.55 + 0.45 * Math.sin(t * 0.0015 + s.phase);
-        const alpha = (0.25 + s.z * 0.75) * twinkle;
+        const alpha = (0.15 + s.z * 0.55) * twinkle;
         ctx.beginPath();
-        ctx.fillStyle = `hsla(${s.hue}, 90%, 85%, ${alpha})`;
+        ctx.fillStyle = `hsla(${s.hue}, 60%, 88%, ${alpha})`;
         ctx.arc(x, y, s.r * (0.6 + s.z), 0, Math.PI * 2);
         ctx.fill();
       }
@@ -91,9 +91,9 @@ export function Starfield() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute -left-40 -top-40 h-[42rem] w-[42rem] rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.18),transparent_65%)]" />
-      <div className="absolute -right-48 top-1/3 h-[38rem] w-[38rem] rounded-full bg-[radial-gradient(circle,rgba(217,70,239,0.12),transparent_65%)]" />
-      <div className="absolute bottom-[-20rem] left-1/4 h-[36rem] w-[36rem] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.08),transparent_65%)]" />
+      {/* 极淡的星云：顶部一束冷光，右下一抹紫 */}
+      <div className="absolute left-1/2 top-[-28rem] h-[48rem] w-[72rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(120,134,255,0.16),transparent_62%)]" />
+      <div className="absolute -bottom-72 -right-40 h-[40rem] w-[40rem] rounded-full bg-[radial-gradient(circle,rgba(168,120,255,0.07),transparent_65%)]" />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
     </div>
   );

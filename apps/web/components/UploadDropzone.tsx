@@ -77,8 +77,11 @@ export function UploadDropzone() {
         void handleFile(e.dataTransfer.files[0]);
       }}
       className={clsx(
-        "glass group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-dashed px-6 py-12 text-center transition",
-        dragging ? "border-accent shadow-[0_0_48px_-12px_var(--glow)]" : "hover:border-line-strong",
+        "group relative flex cursor-pointer items-center gap-4 rounded-2xl border px-5 py-5 text-left transition duration-200 sm:px-6",
+        "bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]",
+        dragging
+          ? "border-accent/60 shadow-[0_0_0_4px_rgba(163,177,255,0.08),0_24px_80px_-24px_var(--glow)]"
+          : "border-line hover:border-line-strong",
       )}
     >
       <input
@@ -91,12 +94,16 @@ export function UploadDropzone() {
           e.target.value = "";
         }}
       />
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/15 text-accent transition group-hover:scale-110">
-        {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileUp className="h-6 w-6" />}
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-white/[0.03] text-accent transition group-hover:border-line-strong">
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
       </div>
-      <div className="text-base font-medium">{busy ? progress : "拖入论文 PDF，或点击选择文件"}</div>
-      <div className="text-sm text-muted">解析在浏览器本地完成，论文原件不会上传到服务器</div>
-      {error && <div className="mt-1 text-sm text-red-300">{error}</div>}
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-medium">{busy ? progress : "上传论文"}</div>
+        <div className={clsx("mt-0.5 text-[13px]", error ? "text-red-300" : "text-faint")}>
+          {error ?? (busy ? "在浏览器本地解析，文件不会上传" : "拖入 PDF，或点击选择文件")}
+        </div>
+      </div>
+      <span className="hidden shrink-0 rounded-md border border-line px-2 py-1 font-mono text-[11px] text-faint sm:block">PDF</span>
     </div>
   );
 }

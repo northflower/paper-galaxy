@@ -174,15 +174,16 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <div className="pt-6 text-center">
-            <Sparkles className="mx-auto mb-3 h-6 w-6 text-accent" />
-            <div className="text-sm text-muted">问我任何关于这篇论文的问题，回答会标注原文出处</div>
-            <div className="mt-5 flex flex-col gap-2">
+          <div className="flex h-full flex-col justify-end pb-2">
+            <div className="mb-3 flex items-center gap-2 text-[13px] text-muted">
+              <Sparkles className="h-3.5 w-3.5 text-accent" /> 向这篇论文提问
+            </div>
+            <div className="flex flex-col gap-1.5">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-lg border border-line px-3 py-2 text-left text-sm text-fg/85 transition hover:border-line-strong hover:bg-white/[0.03]"
+                  className="btn-ghost px-3 py-2 text-left text-[13px] text-fg/80"
                 >
                   {s}
                 </button>
@@ -192,7 +193,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
         )}
         {messages.map((m) =>
           m.role === "user" ? (
-            <div key={m.id} className="ml-8 rounded-xl rounded-br-sm bg-accent/15 px-3.5 py-2.5 text-sm">
+            <div key={m.id} className="ml-10 rounded-2xl rounded-br-md bg-white/[0.07] px-3.5 py-2.5 text-[13.5px] leading-relaxed">
               {m.content}
             </div>
           ) : (
@@ -201,7 +202,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
               {m.content && (
                 <div
                   className={clsx(
-                    "prose-answer text-sm leading-relaxed",
+                    "prose-answer text-[13.5px] leading-[1.75] text-fg/90",
                     m.status === "streaming" && "caret",
                     m.status === "error" && "text-red-300",
                   )}
@@ -255,7 +256,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
         }}
         className="border-t border-line p-3"
       >
-        <div className="flex items-end gap-2 rounded-xl border border-line bg-black/20 p-2 focus-within:border-line-strong">
+        <div className="flex items-end gap-2 rounded-xl border border-line bg-white/[0.02] p-2 transition focus-within:border-line-strong focus-within:bg-white/[0.04]">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -266,7 +267,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
               }
             }}
             rows={1}
-            placeholder="提问，Enter 发送"
+            placeholder="输入问题…"
             className="max-h-32 flex-1 resize-none bg-transparent px-1 py-1 text-sm outline-none placeholder:text-faint"
           />
           {busy ? (
@@ -283,7 +284,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
               type="submit"
               aria-label="发送"
               disabled={!input.trim()}
-              className="rounded-lg bg-accent p-2 text-[#0b0d1f] transition disabled:opacity-30"
+              className="rounded-lg bg-fg p-2 text-bg transition hover:bg-white disabled:opacity-20"
             >
               <SendHorizontal className="h-4 w-4" />
             </button>
@@ -296,7 +297,7 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
 
 function Steps({ steps }: { steps: NonNullable<Message["steps"]> }) {
   return (
-    <ol className="space-y-1 rounded-lg border border-line bg-black/15 px-3 py-2 text-xs">
+    <ol className="space-y-1 border-l border-line py-0.5 pl-3 text-xs">
       {steps.map((s) => (
         <li key={s.label} className="flex items-center gap-2 text-muted">
           {s.state === "running" ? (

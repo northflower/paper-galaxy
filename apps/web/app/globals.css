@@ -1,23 +1,27 @@
 @import "tailwindcss";
 
-/* 星系主题设计令牌 */
+/* 设计令牌：深空底色 + 克制的中性灰 + 单一强调色 */
 :root {
-  --bg: #05060f;
-  --bg-elev: rgba(17, 20, 40, 0.72);
-  --bg-elev-strong: rgba(22, 26, 52, 0.92);
-  --border: rgba(148, 163, 255, 0.16);
-  --border-strong: rgba(148, 163, 255, 0.32);
-  --fg: #e6e8ff;
-  --fg-muted: #9aa0c7;
-  --fg-faint: #6a7099;
-  --accent: #8b9dff;
-  --accent-2: #d98bff;
-  --glow: rgba(139, 157, 255, 0.45);
+  --bg: #07080c;
+  --surface: #0d0f15;
+  --surface-2: #12151d;
+  --bg-elev: rgba(15, 17, 24, 0.72);
+  --bg-elev-strong: rgba(13, 15, 21, 0.96);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --fg: #ecedf2;
+  --fg-muted: #9b9eae;
+  --fg-faint: #62657a;
+  --accent: #a3b1ff;
+  --accent-2: #c9b8ff;
+  --glow: rgba(163, 177, 255, 0.35);
   color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-elev: var(--bg-elev);
   --color-elev-strong: var(--bg-elev-strong);
   --color-line: var(--border);
@@ -27,8 +31,9 @@
   --color-faint: var(--fg-faint);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
-  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-serif: "Source Serif Pro", "Noto Serif SC", Georgia, serif;
+  --font-sans: "Inter", -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Charter", "Iowan Old Style", "Source Serif 4", "Source Serif Pro", Georgia, "Noto Serif SC", "Songti SC", serif;
+  --font-display: "Inter Display", "Inter", -apple-system, "PingFang SC", "Microsoft YaHei UI", sans-serif;
 }
 
 html,
@@ -36,6 +41,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
 }
 
 body {
@@ -43,34 +49,76 @@ body {
 }
 
 ::selection {
-  background: rgba(139, 157, 255, 0.35);
+  background: rgba(163, 177, 255, 0.28);
 }
 
-/* 玻璃拟态面板 */
+/* 半透明浮层（顶栏、弹出层），透出背景星空 */
 .glass {
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+/* 实色面板（阅读区、侧栏），保证长时间阅读的对比度 */
+.panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 120px), var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 24px 64px -32px rgba(0, 0, 0, 0.8);
 }
 
 .text-gradient {
-  background: linear-gradient(100deg, #c7d0ff 0%, var(--accent) 40%, var(--accent-2) 100%);
+  background: linear-gradient(180deg, #ffffff 20%, #b9c2ff 120%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* 被轨迹节点或引用定位到的段落 */
+/* 被脉络节点或引用定位到的段落：左侧强调条 + 极淡底色 */
 .chunk-active {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 1px var(--glow), 0 0 32px -8px var(--glow);
-  background: rgba(139, 157, 255, 0.07);
+  background: rgba(163, 177, 255, 0.06);
+  box-shadow: inset 2px 0 0 0 var(--accent);
 }
 
 .term {
-  border-bottom: 1px dashed rgba(217, 139, 255, 0.6);
+  text-decoration: underline dotted rgba(201, 184, 255, 0.55);
+  text-underline-offset: 4px;
   cursor: help;
+}
+
+/* 细分隔的发丝线按钮 */
+.btn-ghost {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg-muted);
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* 区块标题：小号大写字距 */
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 .caret::after {
@@ -113,7 +161,7 @@ body {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 255, 0.25) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 /* 回答 Markdown 排版 */
@@ -132,7 +180,7 @@ body {
   list-style: decimal;
 }
 .prose-answer code {
-  background: rgba(139, 157, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
   padding: 0.1em 0.35em;
   border-radius: 4px;
   font-size: 0.9em;

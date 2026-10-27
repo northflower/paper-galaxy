@@ -1,17 +1,17 @@
 # 论文星图 PaperGalaxy
 
-> AI 驱动的论文研读平台：上传论文，AI 拆解研究轨迹、术语一致地双语对照翻译、可溯源问答。
+> AI 论文阅读器：双语对照翻译、论文脉络解读、可溯源问答。
 
 ## 核心功能
 
 | 功能 | 说明 | AI 技术 |
 |---|---|---|
-| 研究轨迹拆解 | 把论文拆成“问题 → 动机 → 方法 → 创新 → 实验 → 结论 → 局限”的论证链，以星轨形式展示，点击星星定位原文 | LLM 结构化输出 + 证据段落校验 |
+| 论文脉络 | 把论文拆成“问题 → 动机 → 方法 → 创新 → 实验 → 结论 → 局限”的论证链，附章节目录；点击任一环节定位并高亮原文依据 | LLM 结构化输出 + 证据段落校验 |
 | 双语对照阅读 | 段落级流式翻译，进入可视区域才翻译并本地缓存 | 术语表检索注入 Prompt，保证全文译名一致 |
 | 术语表 | 自动抽取关键术语，原文中悬停显示译名与解释 | LLM 信息抽取 |
 | 溯源问答 | 每个回答带 `P3` 等可点击引用；界面可视化“查询改写 → 混合检索 → 生成”过程 | 查询改写 + BM25/向量混合检索（RRF 融合）+ 引用约束生成 |
-| 知识星系 | 所有论文的段落按语义降维成 3D 星空，每篇论文一团星云；跨论文检索时问题化作一颗星，光束按相关度依次连向命中的段落，点击即可回到原文 | 端侧向量 + UMAP 降维（Web Worker，逐帧展示成形过程）+ 查询改写 + 向量检索可视化 |
-| 划词提问 | 选中原文任意内容一键提问 | — |
+| 论文库检索 | 在所有论文中语义检索，结果直达原文段落 | 查询改写 + 端侧向量检索 |
+| 划词翻译 / 解释 | 选中原文即可就地翻译（遵循术语表），或交给 AI 解释 | 流式翻译 + 问答 |
 | 本地优先 | PDF 解析、向量化均在浏览器完成，数据存于 IndexedDB | Transformers.js 端侧 embedding（Web Worker） |
 
 **AI 安全与可控**：Prompt 注入防护（论文内容只作数据）、输入拦截、结构化输出 schema 校验与自动重试、剔除模型编造的段落编号、依据强度提示、无依据时明确告知、所有 AI 失败都有界面兜底。
@@ -24,13 +24,12 @@
 ├─ IndexedDB（Dexie）论文/段落/向量/译文缓存        ├─ /api/trajectory   研究轨迹拆解
 ├─ Web Worker + Transformers.js 端侧向量化          ├─ /api/translate    流式翻译
 ├─ MiniSearch BM25 + 向量检索 + RRF 融合            ├─ /api/query-plan   查询改写
-├─ UMAP Worker 降维 + React Three Fiber 知识星系
-└─ React 19 + Zustand + Tailwind 星系主题界面       └─ /api/chat         带引用的流式问答
+└─ React 19 + Zustand + Tailwind 深色沉浸式界面       └─ /api/chat         带引用的流式问答
                                                      （Vercel AI SDK，OpenAI 兼容接口）
 packages/scholar-mcp：学术检索 MCP 服务器（arXiv / Semantic Scholar）
 ```
 
-技术栈：Next.js 15 · React 19 · TypeScript · Tailwind CSS 4 · Vercel AI SDK 5 · Zod · Dexie · Zustand · pdf.js · Transformers.js · MiniSearch · three.js / React Three Fiber · umap-js
+技术栈：Next.js 15 · React 19 · TypeScript · Tailwind CSS 4 · Vercel AI SDK 5 · Zod · Dexie · Zustand · pdf.js · Transformers.js · MiniSearch
 
 ## 本地运行
 
@@ -65,11 +64,10 @@ HF_ENDPOINT=https://hf-mirror.com npm run download-model
 ```
 apps/web/
   app/                 页面与 API 路由
-  components/          reader / trajectory / chat / galaxy 组件
+  components/          home / reader / chat 组件
   lib/ai/              模型接入、Prompt、安全策略
   lib/pdf/             PDF 解析
   lib/rag/             端侧向量化、混合检索
-  lib/galaxy/          知识星系数据与 UMAP 降维 Worker
   lib/hooks/           AI 预处理流水线、翻译队列
   stores/              Zustand 状态
 packages/scholar-mcp/  学术检索 MCP 服务器
