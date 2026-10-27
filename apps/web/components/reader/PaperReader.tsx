@@ -271,7 +271,6 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           {paper.file && (
             <button
               onClick={() => setRegionMode(!regionMode)}
-              title="在 PDF 上框选图表、公式或表格，让 AI 讲解"
               className={clsx(
                 "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition",
                 regionMode ? "bg-accent/20 text-fg ring-1 ring-accent/50" : "text-muted hover:bg-white/5 hover:text-fg",
@@ -316,7 +315,6 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           </div>
           <button
             aria-label="导出双语译文"
-            title={progress < 100 ? `导出双语译文（已翻译 ${progress}%，未翻译段落保留原文）` : "导出双语译文（Markdown）"}
             onClick={() => exportMarkdown(paper, chunks)}
             className="hidden rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg sm:block"
           >
@@ -487,7 +485,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
       {regionMode && (
         <div className="glass rise fixed left-1/2 top-[68px] z-40 flex -translate-x-1/2 items-center gap-3 rounded-full px-4 py-2 text-[13px] shadow-xl">
           <ScanSearch className="h-4 w-4 text-accent" />
-          在页面上拖动，框选图表、公式或表格
+          拖动框选
           <button onClick={() => setRegionMode(false)} className="text-faint hover:text-fg">
             取消 <span className="font-mono text-[11px]">Esc</span>
           </button>

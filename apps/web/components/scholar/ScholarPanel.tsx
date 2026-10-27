@@ -119,11 +119,8 @@ ${run.report}`);
       <div className="scrollbar-thin flex-1 space-y-6 overflow-y-auto p-4">
         {runs.length === 0 && (
           <div className="flex h-full flex-col justify-end pb-2 text-[13px] text-muted">
-            <p className="mb-1 flex items-center gap-2">
+            <p className="flex items-center gap-2">
               <Plug className="h-3.5 w-3.5 text-accent" /> 学者 Agent
-            </p>
-            <p className="text-xs leading-relaxed text-faint">
-              通过 MCP 连接 arXiv 与 Semantic Scholar，自主检索并梳理这篇论文的研究脉络。
             </p>
           </div>
         )}
@@ -131,7 +128,6 @@ ${run.report}`);
           <section key={run.id} className="space-y-3">
             <div className="flex items-center gap-2 text-[13px] font-medium">
               <span className="rounded-md bg-accent/15 px-2 py-0.5 text-accent">{run.goal}</span>
-              {run.tools.length > 0 && <span className="text-[11px] font-normal text-faint">已连接 scholar-mcp · {run.tools.length} 个工具</span>}
               {run.status === "done" && run.report && (
                 <button
                   onClick={() => copyReport(run)}
@@ -176,12 +172,6 @@ ${run.report}`);
                   <li className="relative flex items-center gap-1.5 text-xs text-faint">
                     <span className="absolute -left-[21px] top-0.5 h-[10px] w-[10px] animate-pulse rounded-full border border-accent" />
                     {!run.steps.length ? "规划检索策略…" : run.steps.some((s) => !s.summary && !s.error) ? "等待工具返回…" : "分析结果，规划下一步或撰写报告…"}
-                  </li>
-                )}
-                {run.status === "done" && run.report && (
-                  <li className="relative flex items-center gap-1.5 text-xs text-muted">
-                    <span className="absolute -left-[21px] top-0.5 h-[10px] w-[10px] rounded-full border border-emerald-400 bg-emerald-400/30" />
-                    <Check className="h-3.5 w-3.5 text-emerald-300" /> 完成调研，共调用 {run.steps.length} 次工具
                   </li>
                 )}
               </ol>

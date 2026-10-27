@@ -9,7 +9,7 @@ import { useSettings } from "@/stores/settings";
  * 首页的模型连接状态：
  * - 未配置：极光描边的“连接你的 AI 模型”卡片，三步说明 + 一键打开设置；
  * - 已配置：一枚状态胶囊，显示模型名、服务商域名与是否支持视觉，点“更换”重新配置；
- * - 只有服务端默认模型：提示正在使用站点默认模型，可改用自己的 Key。
+ * - 只有服务端默认模型：显示“站点默认模型”，可改用自己的 Key。
  */
 export function ModelStatus() {
   const { settings, hydrated, hydrate, server, fetchServer, setOpen } = useSettings();
@@ -28,7 +28,6 @@ export function ModelStatus() {
       <Pill
         tone={verified ? "ok" : "warn"}
         label={verified ? "模型已连接" : "尚未测试"}
-        title={verified ? "已通过连接测试" : "配置已保存，但还没有测试连接"}
         detail={
           <>
             <span className="truncate font-medium text-fg/90">{settings.model || "未填写模型"}</span>
@@ -51,14 +50,7 @@ export function ModelStatus() {
 
   if (server?.chat) {
     return (
-      <Pill
-        tone="info"
-        label="站点默认模型"
-        title="正在使用部署者配置的默认模型"
-        detail={<span className="text-muted">无需配置即可使用</span>}
-        action="用自己的 Key"
-        onAction={() => setOpen(true)}
-      />
+      <Pill tone="info" label="站点默认模型" action="用自己的 Key" onAction={() => setOpen(true)} />
     );
   }
 
@@ -74,24 +66,24 @@ const TONES = {
 function Pill(props: {
   tone: keyof typeof TONES;
   label: string;
-  title: string;
-  detail: React.ReactNode;
+  detail?: React.ReactNode;
   action: string;
   onAction: () => void;
 }) {
   const t = TONES[props.tone];
   return (
     <div className="mb-4 flex justify-center">
-      <div
-        title={props.title}
-        className="glass flex max-w-full items-center gap-2.5 rounded-full py-1.5 pl-3.5 pr-1.5 text-xs shadow-[0_12px_40px_-16px_rgba(0,0,0,0.8)]"
-      >
+      <div className="glass flex max-w-full items-center gap-2.5 rounded-full py-1.5 pl-3.5 pr-1.5 text-xs shadow-[0_12px_40px_-16px_rgba(0,0,0,0.8)]">
         <span className={clsx("ripple relative flex h-2 w-2 shrink-0", t.ring)}>
           <span className={clsx("h-2 w-2 rounded-full", t.dot)} />
         </span>
         <span className={clsx("shrink-0", t.text)}>{props.label}</span>
-        <span className="h-3 w-px shrink-0 bg-white/10" />
-        <span className="flex min-w-0 items-center gap-2">{props.detail}</span>
+        {props.detail && (
+          <>
+            <span className="h-3 w-px shrink-0 bg-white/10" />
+            <span className="flex min-w-0 items-center gap-2">{props.detail}</span>
+          </>
+        )}
         <button
           onClick={props.onAction}
           className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] text-muted transition hover:bg-white/[0.12] hover:text-fg"
@@ -117,9 +109,6 @@ function ConnectCard({ onConnect }: { onConnect: () => void }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-medium">连接你的 AI 模型</div>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-faint">
-            翻译、问答、讲解都需要一个大模型。支持任意 OpenAI 兼容接口，Key 只保存在你的浏览器。
-          </p>
           <ol className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
             {STEPS.map((s, i) => (
               <li key={s} className="flex items-center gap-2">

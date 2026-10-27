@@ -83,22 +83,18 @@ export function SettingsDialog() {
         onClick={(e) => e.stopPropagation()}
         className="panel rise scrollbar-thin max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl p-5 sm:p-6"
       >
-        <div className="mb-1 flex items-center gap-2">
+        <div className={clsx("flex items-center gap-2", server?.chat ? "mb-1" : "mb-4")}>
           <KeyRound className="h-4 w-4 text-accent" />
           <h2 className="flex-1 text-[15px] font-medium">模型设置</h2>
           <button aria-label="关闭" onClick={() => setOpen(false)} className="rounded-md p-1 text-muted hover:text-fg">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mb-4 text-xs leading-relaxed text-faint">
-          支持任意 OpenAI 兼容接口。配置只保存在当前浏览器，调用 AI 时经本站服务端转发给模型服务，服务端不保存。
-          {server?.chat && " 服务端已配置默认模型，不填写也可以直接使用。"}
-        </p>
-
+        {server?.chat && <p className="mb-4 text-xs leading-relaxed text-faint">服务端已配置默认模型，不填写也可以直接使用。</p>}
 
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs text-muted">接口地址（Base URL）</span>
+            <span className="mb-1 block text-xs text-muted">接口地址</span>
             <input className={field} value={draft.baseURL} onChange={(e) => set("baseURL", e.target.value)} placeholder="https://your-provider.com/v1" />
           </label>
           <label className="block">
@@ -135,7 +131,7 @@ export function SettingsDialog() {
           </div>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">视觉模型（框选讲解，可选）</span>
-            <input className={field} value={draft.visionModel} onChange={(e) => set("visionModel", e.target.value)} placeholder="支持图片输入的模型，留空则不可用" />
+            <input className={field} value={draft.visionModel} onChange={(e) => set("visionModel", e.target.value)} placeholder="模型名称" />
           </label>
           <label className="flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={draft.disableThinking} onChange={(e) => set("disableThinking", e.target.checked)} />

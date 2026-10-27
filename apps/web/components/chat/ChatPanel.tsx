@@ -303,7 +303,6 @@ export function ChatPanel({ paperId, saved, title, chunks, index, glossary }: Pr
                   <span className={clsx("rounded px-1.5 py-0.5", STRENGTH[(m.retrieval?.strength ?? m.strength)!].cls)}>
                     {STRENGTH[(m.retrieval?.strength ?? m.strength)!].label}
                   </span>
-                  <span className="text-faint">AI 生成内容，请以原文为准</span>
                 </div>
               )}
             </div>
