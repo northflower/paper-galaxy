@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, ScanSearch, Sun, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ScholarPanel } from "@/components/scholar/ScholarPanel";
@@ -41,16 +41,45 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
   // 左栏默认收起，把宽度留给 PDF；需要时从顶栏打开
   const [railHidden, setRailHidden] = useState(true);
   const articleRef = useRef<HTMLElement>(null);
-  // 缩放：1 = 页面铺满阅读区宽度；可用按钮或 Ctrl + 滚轮调整
+  // 缩放：1 = 页面铺满阅读区宽度；可用按钮或 Ctrl + 滚轮调整，以鼠标所指位置为中心
   const [zoom, setZoom] = useState(1);
-  const zoomBy = (delta: number) => setZoom((z) => Math.round(Math.min(2.5, Math.max(0.5, z + delta)) * 10) / 10);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
+  // 缩放前记下锚点在页面内容中的相对位置，缩放后滚动回同一位置
+  const anchorRef = useRef<{ fx: number; fy: number; x: number; y: number } | null>(null);
+  const zoomTo = (next: number, clientX?: number, clientY?: number) => {
+    const target = Math.round(Math.min(2.5, Math.max(0.5, next)) * 100) / 100;
+    if (target === zoomRef.current) return;
+    const pages = document.getElementById("pdf-pages");
+    const article = articleRef.current;
+    if (pages && article) {
+      const box = article.getBoundingClientRect();
+      const x = clientX ?? box.left + box.width / 2;
+      const y = clientY ?? window.innerHeight / 2;
+      const r = pages.getBoundingClientRect();
+      anchorRef.current = { fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, x, y };
+    }
+    setZoom(target);
+  };
+  const zoomBy = (delta: number) => zoomTo(Math.round((zoomRef.current + delta) * 10) / 10);
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const pages = document.getElementById("pdf-pages");
+    const article = articleRef.current;
+    anchorRef.current = null;
+    if (!anchor || !pages || !article) return;
+    const r = pages.getBoundingClientRect();
+    article.scrollLeft += r.left + anchor.fx * r.width - anchor.x;
+    window.scrollBy(0, r.top + anchor.fy * r.height - anchor.y);
+  }, [zoom]);
   useEffect(() => {
     const el = articleRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      setZoom((z) => Math.round(Math.min(2.5, Math.max(0.5, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))) * 100) / 100);
+      // 指数缩放：鼠标滚轮与触控板双指捏合都平滑
+      zoomTo(zoomRef.current * Math.exp(-e.deltaY * 0.0022), e.clientX, e.clientY);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -203,7 +232,7 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               </button>
               <button
                 title="适应宽度"
-                onClick={() => setZoom(1)}
+                onClick={() => zoomTo(1)}
                 className="min-w-[3.25rem] rounded-md px-1 py-1 text-center tabular-nums text-muted transition hover:bg-white/[0.08] hover:text-fg"
               >
                 {Math.round(zoom * 100)}%

@@ -87,6 +87,7 @@ export function PdfView({ paperId, file, chunks, mode, activeSet, night, transla
   const paper = night ? PAPER.night : PAPER.day;
   return (
     <div
+      id="pdf-pages"
       className="mx-auto space-y-6"
       // 单页模式下 100% 时页面不宜过宽，限制在约 1100px 以内，再按缩放比例放大
       style={{ width: `${zoom * 100}%`, maxWidth: mode === "bilingual" ? undefined : zoom * 1100 }}
@@ -150,7 +151,10 @@ const PdfPage = memo(function PdfPage({
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
+  // scale 随布局即时更新，叠加层（段落框、译文、文字层）立刻跟上；
+  // renderScale 等缩放停下后再更新，画布才按新分辨率重绘，中途用旧位图拉伸过渡
   const [scale, setScale] = useState(0);
+  const [renderScale, setRenderScale] = useState(0);
   const [visible, setVisible] = useState(false);
   const translated = variant === "translated";
   const regionMode = useReader((st) => st.regionMode);
@@ -159,20 +163,18 @@ const PdfPage = memo(function PdfPage({
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    let timer = 0;
-    let first = true;
-    const ro = new ResizeObserver(([entry]) => {
-      clearTimeout(timer);
-      const w = entry.contentRect.width;
-      timer = window.setTimeout(() => setScale(w / size.width), first ? 0 : 150);
-      first = false;
-    });
+    const ro = new ResizeObserver(([entry]) => setScale(entry.contentRect.width / size.width));
     ro.observe(el);
-    return () => {
-      ro.disconnect();
-      clearTimeout(timer);
-    };
+    return () => ro.disconnect();
   }, [size.width]);
+
+  useEffect(() => {
+    if (!scale) return;
+    // 首次立即渲染；之后缩放停止 180ms 再重绘
+    const timer = window.setTimeout(() => setRenderScale(scale), renderScale ? 180 : 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -192,7 +194,7 @@ const PdfPage = memo(function PdfPage({
   useEffect(() => {
     const canvas = canvasRef.current;
     const textEl = textRef.current;
-    if (!canvas || !scale) return;
+    if (!canvas || !renderScale) return;
     if (!visible) {
       // 释放离屏页面的位图内存
       canvas.width = 0;
@@ -206,11 +208,14 @@ const PdfPage = memo(function PdfPage({
       const pdfPage = await handle.doc.getPage(page);
       if (cancelled) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const viewport = pdfPage.getViewport({ scale });
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
+      const viewport = pdfPage.getViewport({ scale: renderScale });
+      // 先画到离屏画布，完成后一次性拷贝到可见画布：
+      // 可见画布始终是一帧完整的画面，不会出现清空闪烁或多次渲染交错的乱码
+      const offscreen = document.createElement("canvas");
+      offscreen.width = Math.floor(viewport.width * dpr);
+      offscreen.height = Math.floor(viewport.height * dpr);
       task = pdfPage.render({
-        canvasContext: canvas.getContext("2d")!,
+        canvasContext: offscreen.getContext("2d")!,
         viewport,
         transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
       });
@@ -219,16 +224,23 @@ const PdfPage = memo(function PdfPage({
       } catch {
         return;
       }
-      if (cancelled || !textEl) return;
+      if (cancelled) return;
+      canvas.width = offscreen.width;
+      canvas.height = offscreen.height;
+      canvas.getContext("2d")!.drawImage(offscreen, 0, 0);
+      if (!textEl) return;
+      // 文字层用 --scale-factor 随缩放即时调整，这里按新尺寸重建一次以保证精度
       const { TextLayer } = await import("pdfjs-dist");
-      textEl.replaceChildren();
-      await new TextLayer({ textContentSource: pdfPage.streamTextContent(), container: textEl, viewport }).render();
+      const fresh = document.createElement("div");
+      await new TextLayer({ textContentSource: await pdfPage.getTextContent(), container: fresh, viewport }).render();
+      if (cancelled) return;
+      textEl.replaceChildren(...fresh.childNodes);
     })();
     return () => {
       cancelled = true;
       task?.cancel();
     };
-  }, [handle, page, scale, visible]);
+  }, [handle, page, renderScale, visible]);
 
   // 在原文页上点击段落（且没有在选文字）时，定位该段
   const pickAt = (e: React.PointerEvent) => {
@@ -256,7 +268,13 @@ const PdfPage = memo(function PdfPage({
             const ref = m.chunk.ref;
             const on = activeSet.has(ref);
             const hover = hovered === ref;
-            const style = { left: m.box.x * scale, top: m.box.y * scale, width: m.box.w * scale, height: m.box.h * scale };
+            // 用百分比定位：页面尺寸变化时叠加层与画布始终对齐
+            const style = {
+              left: `${(m.box.x / size.width) * 100}%`,
+              top: `${(m.box.y / size.height) * 100}%`,
+              width: `${(m.box.w / size.width) * 100}%`,
+              height: `${(m.box.h / size.height) * 100}%`,
+            };
             const ring = on
               ? "ring-1 ring-[rgba(120,135,255,0.75)] bg-[rgba(99,115,255,0.14)]"
               : hover
@@ -415,7 +433,7 @@ function TranslatedBox({
   onPick,
 }: {
   mark: Mark;
-  style: React.CSSProperties;
+  style: { left: string; top: string; width: string; height: string };
   scale: number;
   paper: PageProps["paper"];
   translator: Translator;
@@ -429,20 +447,26 @@ function TranslatedBox({
   const text = full ? sliceForBox(full, chunk.boxes!, boxIndex) : "";
   const textRef = useRef<HTMLDivElement>(null);
 
-  // 二分查找能放下全部译文的最大字号；上限约等于原文正文字号
+  // 二分查找能放下全部译文的最大字号（以 PDF 点为单位，上限约等于正文字号）。
+  // 字号写成 var(--scale-factor) 的倍数，缩放时随页面同步缩放，无需重新计算
+  const sized = useRef<{ text: string; scale: number } | null>(null);
   useLayoutEffect(() => {
     const el = textRef.current;
-    if (!el || !text) return;
-    let lo = 3;
-    let hi = 10.5 * scale;
-    for (let k = 0; k < 8; k++) {
+    if (!el || !text || !scale) return;
+    // 文字没变、只是缩放时跳过（比例不变）；缩放幅度很大时重新拟合一次，修正换行误差
+    const last = sized.current;
+    if (last && last.text === text && Math.abs(last.scale - scale) / last.scale < 0.35) return;
+    let lo = 2;
+    let hi = 10.5;
+    for (let k = 0; k < 9; k++) {
       const mid = (lo + hi) / 2;
-      el.style.fontSize = `${mid}px`;
+      el.style.fontSize = `${mid * scale}px`;
       if (el.scrollHeight <= el.clientHeight + 1) lo = mid;
       else hi = mid;
     }
-    el.style.fontSize = `${lo}px`;
-  }, [text, scale, style.width, style.height]);
+    el.style.fontSize = `calc(var(--scale-factor) * ${lo.toFixed(3)}px)`;
+    sized.current = { text, scale };
+  }, [text, scale]);
 
   return (
     <div
@@ -472,7 +496,7 @@ function TranslatedBox({
         </button>
       ) : (
         <div className="flex h-full flex-col justify-start gap-[6px] p-[2px] opacity-60">
-          {Array.from({ length: Math.max(1, Math.min(8, Math.floor(((style.height as number) || 0) / (12 * scale)))) }, (_, k) => (
+          {Array.from({ length: Math.max(1, Math.min(8, Math.floor(mark.box.h / 12))) }, (_, k) => (
             <div key={k} className="skeleton h-[40%] max-h-[8px] min-h-[3px]" style={{ width: k % 3 === 2 ? "70%" : "100%" }} />
           ))}
         </div>
