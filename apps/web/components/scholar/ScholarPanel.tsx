@@ -1,30 +1,16 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowDownLeft, ArrowUpRight, Check, FileText, Loader2, Plug, Search, SendHorizontal, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { ArrowDownLeft, ArrowUpRight, Check, Copy, FileText, Loader2, Plug, Search, SendHorizontal, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { db } from "@/lib/db";
+import type { SavedRun } from "@/lib/types";
 
 type Goal = "background" | "followup" | "related" | "custom";
 
-interface Step {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-  summary?: string;
-  error?: string;
-}
-
-interface Run {
-  id: string;
-  goal: string;
-  tools: string[];
-  steps: Step[];
-  report: string;
-  status: "running" | "done" | "error";
-  error?: string;
-}
+type Run = SavedRun;
 
 const PRESETS: { goal: Goal; label: string }[] = [
   { goal: "background", label: "前置工作" },
@@ -43,11 +29,27 @@ const TOOL_META: Record<string, { label: string; icon: typeof Search }> = {
  * 学者 Agent 面板：选择调研目标后，Agent 通过 MCP 调用学术检索工具，
  * 时间线实时展示每一步的工具调用与结果，最后给出带链接的研究脉络报告。
  */
-export function ScholarPanel({ title, summary }: { title: string; summary?: string }) {
-  const [runs, setRuns] = useState<Run[]>([]);
+export function ScholarPanel({ paperId, saved, title, summary }: { paperId: string; saved?: SavedRun[]; title: string; summary?: string }) {
+  const [runs, setRuns] = useState<Run[]>(() => saved ?? []);
+  const [copied, setCopied] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const running = runs.some((r) => r.status === "running");
+
+  // 调研结束后保存，下次打开论文仍能看到报告
+  useEffect(() => {
+    if (!running) void db.papers.update(paperId, { scholarRuns: runs });
+  }, [running, runs, paperId]);
+
+  const copyReport = async (run: Run) => {
+    try {
+      await navigator.clipboard.writeText(`# ${title} · ${run.goal}
+
+${run.report}`);
+      setCopied(run.id);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {}
+  };
 
   const update = (id: string, fn: (r: Run) => Run) => setRuns((rs) => rs.map((r) => (r.id === id ? fn(r) : r)));
 
@@ -129,6 +131,15 @@ export function ScholarPanel({ title, summary }: { title: string; summary?: stri
             <div className="flex items-center gap-2 text-[13px] font-medium">
               <span className="rounded-md bg-accent/15 px-2 py-0.5 text-accent">{run.goal}</span>
               {run.tools.length > 0 && <span className="text-[11px] font-normal text-faint">已连接 scholar-mcp · {run.tools.length} 个工具</span>}
+              {run.status === "done" && run.report && (
+                <button
+                  onClick={() => copyReport(run)}
+                  className="ml-auto flex items-center gap-1 text-[11px] font-normal text-faint transition hover:text-muted"
+                >
+                  {copied === run.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied === run.id ? "已复制" : "复制报告"}
+                </button>
+              )}
             </div>
 
             {/* Agent 时间线：每一次工具调用及其结果 */}

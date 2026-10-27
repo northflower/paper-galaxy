@@ -81,11 +81,17 @@ export async function POST(req: Request) {
           stopWhen: stepCountIs(8),
           temperature: 0.2,
         });
+        let wroteText = false;
         for await (const part of result.fullStream) {
-          if (part.type === "tool-call") send({ type: "call", id: part.toolCallId, name: part.toolName, input: part.input });
+          // 不同步骤的文字各自成段，避免前一步的说明和报告标题粘在一起
+          if (part.type === "text-start" && wroteText) send({ type: "text", delta: "\n\n" });
+          else if (part.type === "tool-call") send({ type: "call", id: part.toolCallId, name: part.toolName, input: part.input });
           else if (part.type === "tool-result") send({ type: "result", id: part.toolCallId, summary: summarize(part.output) });
           else if (part.type === "tool-error") send({ type: "result", id: part.toolCallId, error: String(part.error) });
-          else if (part.type === "text-delta") send({ type: "text", delta: part.text });
+          else if (part.type === "text-delta") {
+            wroteText = true;
+            send({ type: "text", delta: part.text });
+          }
           else if (part.type === "error") send({ type: "fatal", message: "AI 服务暂时不可用，请稍后重试" });
         }
         send({ type: "done" });

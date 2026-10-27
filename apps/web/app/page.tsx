@@ -42,9 +42,7 @@ export default function HomePage() {
         <div className="flex-1" />
 
         <div className="rise mx-auto w-full max-w-2xl px-5 pb-10" style={{ animationDelay: "120ms" }}>
-          <div className="rounded-2xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl">
-            <UploadDropzone />
-          </div>
+          <UploadDropzone />
           {papers && papers.length > 0 && (
             <a
               href="#library"

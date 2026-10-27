@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, ScanSearch, Sun, X } from "lucide-react";
+import { ArrowLeft, Download, ListTree, MessagesSquare, Minus, Moon, PanelRight, Plus, ScanSearch, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
@@ -12,6 +12,7 @@ import { useChunkBoxes } from "@/lib/hooks/useChunkBoxes";
 import { usePaperAnalysis } from "@/lib/hooks/usePaperAnalysis";
 import { useTranslator } from "@/lib/hooks/useTranslator";
 import { buildIndex } from "@/lib/rag/search";
+import { exportMarkdown } from "@/lib/export";
 import { useReader, type ViewMode } from "@/stores/reader";
 import { buildTermMatcher, ChunkRow } from "./ChunkRow";
 import { GlossaryPanel } from "./GlossaryPanel";
@@ -111,6 +112,52 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
     const timer = setTimeout(() => focus([focusRef]), 300);
     return () => clearTimeout(timer);
   }, [loaded, focusRef, focus]);
+
+  // 记住阅读位置：滚动时按比例存下，再次打开时恢复（从检索结果跳转时以目标段落为准）
+  useEffect(() => {
+    if (!loaded) return;
+    const key = `pg-pos-${id}`;
+    let restoring = !focusRef;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ratio = () => window.scrollY / Math.max(1, document.documentElement.scrollHeight);
+    const onScroll = () => {
+      if (restoring) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        try {
+          localStorage.setItem(key, ratio().toFixed(4));
+        } catch {}
+      }, 400);
+    };
+    const stop = () => (restoring = false);
+    let saved = 0;
+    try {
+      saved = Number(localStorage.getItem(key)) || 0;
+    } catch {}
+    // PDF 页面占位尺寸异步就绪，等文档高度稳定后再滚动；用户一操作就停止恢复
+    let last = 0;
+    let tries = 0;
+    const restore = () => {
+      if (!restoring) return;
+      const h = document.documentElement.scrollHeight;
+      if (saved > 0.01) window.scrollTo({ top: saved * h });
+      if ((h === last && h > window.innerHeight * 2) || ++tries > 12) return stop();
+      last = h;
+      setTimeout(restore, 250);
+    };
+    if (restoring) setTimeout(restore, 300);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("keydown", stop);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("keydown", stop);
+    };
+  }, [loaded, id, focusRef]);
 
   const matcher = useMemo(() => buildTermMatcher(paper?.glossary), [paper?.glossary]);
   // 索引只依赖段落文本，翻译、向量写回时不重建
@@ -265,6 +312,14 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
               </button>
             ))}
           </div>
+          <button
+            aria-label="导出双语译文"
+            title={progress < 100 ? `导出双语译文（已翻译 ${progress}%，未翻译段落保留原文）` : "导出双语译文（Markdown）"}
+            onClick={() => exportMarkdown(paper, chunks)}
+            className="hidden rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg sm:block"
+          >
+            <Download className="h-4 w-4" />
+          </button>
           {paper.file && (
             <button
               aria-label={night ? "原色纸张" : "夜间纸张"}
@@ -403,10 +458,10 @@ export function PaperReader({ id, focusRef }: { id: string; focusRef?: string })
           <div className="min-h-0 flex-1 border-t border-line">
             {/* 用 hidden 而非条件渲染，切换标签时保留对话记录 */}
             <div className={clsx("h-full", sideTab !== "chat" && "hidden")}>
-              {index && <ChatPanel title={paper.title} chunks={chunks} index={index} glossary={paper.glossary ?? []} />}
+              {index && <ChatPanel paperId={paper.id} saved={paper.chat} title={paper.title} chunks={chunks} index={index} glossary={paper.glossary ?? []} />}
             </div>
             <div className={clsx("h-full", sideTab !== "scholar" && "hidden")}>
-              <ScholarPanel title={paper.title} summary={paper.oneLiner} />
+              <ScholarPanel paperId={paper.id} saved={paper.scholarRuns} title={paper.title} summary={paper.oneLiner} />
             </div>
             <div className={clsx("h-full", sideTab !== "glossary" && "hidden")}>
               <GlossaryPanel

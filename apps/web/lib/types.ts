@@ -100,6 +100,31 @@ export interface Paper {
   trajectory?: TrajectoryNode[];
   glossary?: GlossaryTerm[];
   embedStatus?: JobStatus;
+  /** 问答记录，刷新页面后恢复 */
+  chat?: SavedMessage[];
+  /** 学者 Agent 的调研记录 */
+  scholarRuns?: SavedRun[];
+}
+
+/** 持久化的问答消息（检索命中只保留依据强度，不存段落向量） */
+export interface SavedMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  image?: string;
+  steps?: { label: string; state: "running" | "done" | "skipped"; detail?: string }[];
+  strength?: "high" | "medium" | "low";
+  status?: "working" | "streaming" | "done" | "error";
+}
+
+export interface SavedRun {
+  id: string;
+  goal: string;
+  tools: string[];
+  steps: { id: string; name: string; input: Record<string, unknown>; summary?: string; error?: string }[];
+  report: string;
+  status: "running" | "done" | "error";
+  error?: string;
 }
 
 /** 问答请求里携带的检索上下文 */

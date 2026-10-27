@@ -1,31 +1,26 @@
 "use client";
 
-import { Check, Loader2, SendHorizontal, Sparkles, X } from "lucide-react";
+import { Check, Loader2, RotateCcw, SendHorizontal, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import clsx from "clsx";
 import type MiniSearch from "minisearch";
-import { chunkLabel } from "@/lib/db";
+import { chunkLabel, db } from "@/lib/db";
 import { hybridSearch, type SearchResult } from "@/lib/rag/search";
 import { postJson, postStream, readTextStream } from "@/lib/stream";
-import type { Chunk, GlossaryTerm, QueryPlan } from "@/lib/types";
+import type { Chunk, GlossaryTerm, QueryPlan, SavedMessage } from "@/lib/types";
 import { useReader, type VisionRequest } from "@/stores/reader";
 
-type StepState = "running" | "done" | "skipped";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  /** 框选讲解时附带的区域截图 */
-  image?: string;
-  steps?: { label: string; state: StepState; detail?: string }[];
+/** 消息结构见 SavedMessage；本次会话内额外带上完整检索结果 */
+interface Message extends SavedMessage {
   retrieval?: SearchResult;
-  status?: "working" | "streaming" | "done" | "error";
 }
 
 interface Props {
+  paperId: string;
+  /** 上次保存的问答记录 */
+  saved?: SavedMessage[];
   title: string;
   chunks: Chunk[];
   index: MiniSearch<Chunk>;
@@ -44,8 +39,8 @@ const STRENGTH = {
  * 溯源问答面板。一次提问的智能流程（界面上逐步可视化）：
  * 查询改写 → 混合检索（关键词 + 端侧向量）→ 带引用约束的流式生成
  */
-export function ChatPanel({ title, chunks, index, glossary }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function ChatPanel({ paperId, saved, title, chunks, index, glossary }: Props) {
+  const [messages, setMessages] = useState<Message[]>(() => saved ?? []);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -216,6 +211,17 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
     }
   }, [pendingQuestion, busy, consumeQuestion, send]);
 
+  // 每轮回答结束后写回本地库：刷新页面、下次打开都能看到之前的问答
+  useEffect(() => {
+    if (busy) return;
+    const toSave: SavedMessage[] = messages.map(({ retrieval, ...m }) => ({
+      ...m,
+      strength: retrieval?.strength ?? m.strength,
+      status: m.status === "error" ? "error" : "done",
+    }));
+    void db.papers.update(paperId, { chat: toSave });
+  }, [busy, messages, paperId]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
@@ -292,10 +298,10 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
                   </ReactMarkdown>
                 </div>
               )}
-              {m.status === "done" && m.retrieval && (
+              {m.status === "done" && (m.retrieval?.strength ?? m.strength) && (
                 <div className="flex items-center gap-2 text-[11px]">
-                  <span className={clsx("rounded px-1.5 py-0.5", STRENGTH[m.retrieval.strength].cls)}>
-                    {STRENGTH[m.retrieval.strength].label}
+                  <span className={clsx("rounded px-1.5 py-0.5", STRENGTH[(m.retrieval?.strength ?? m.strength)!].cls)}>
+                    {STRENGTH[(m.retrieval?.strength ?? m.strength)!].label}
                   </span>
                   <span className="text-faint">AI 生成内容，请以原文为准</span>
                 </div>
@@ -310,8 +316,17 @@ export function ChatPanel({ title, chunks, index, glossary }: Props) {
           e.preventDefault();
           void send(input);
         }}
-        className="border-t border-line p-3"
+        className="relative border-t border-line p-3"
       >
+        {messages.length > 0 && !busy && (
+          <button
+            type="button"
+            onClick={() => confirm("清空这篇论文的问答记录？") && setMessages([])}
+            className="absolute -top-8 right-3 flex items-center gap-1 rounded-md bg-bg/80 px-2 py-1 text-[11px] text-faint backdrop-blur transition hover:text-muted"
+          >
+            <RotateCcw className="h-3 w-3" /> 新对话
+          </button>
+        )}
         <div className="flex items-end gap-2 rounded-xl border border-line bg-white/[0.02] p-2 transition focus-within:border-line-strong focus-within:bg-white/[0.04]">
           <textarea
             value={input}
@@ -357,14 +372,14 @@ function Steps({ steps }: { steps: NonNullable<Message["steps"]> }) {
       {steps.map((s) => (
         <li key={s.label} className="flex items-center gap-2 text-muted">
           {s.state === "running" ? (
-            <Loader2 className="h-3 w-3 animate-spin text-accent" />
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
           ) : s.state === "done" ? (
-            <Check className="h-3 w-3 text-emerald-300" />
+            <Check className="h-3 w-3 shrink-0 text-emerald-300" />
           ) : (
-            <span className="h-3 w-3 text-center leading-3 text-faint">–</span>
+            <span className="h-3 w-3 shrink-0 text-center leading-3 text-faint">–</span>
           )}
-          <span className={clsx(s.state === "running" && "text-fg")}>{s.label}</span>
-          {s.detail && <span className="truncate text-faint">{s.detail}</span>}
+          <span className={clsx("shrink-0 whitespace-nowrap", s.state === "running" && "text-fg")}>{s.label}</span>
+          {s.detail && <span className="min-w-0 truncate text-faint" title={s.detail}>{s.detail}</span>}
         </li>
       ))}
     </ol>
