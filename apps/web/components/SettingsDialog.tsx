@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { Check, Eye, EyeOff, KeyRound, Loader2, Settings2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { postJson } from "@/lib/stream";
-import { PROVIDER_PRESETS, useSettings, type LlmSettings } from "@/stores/settings";
+import { useSettings, type LlmSettings } from "@/stores/settings";
 
 /** 顶栏的“模型设置”按钮；未配置任何模型时带提示点 */
 export function SettingsButton({ className }: { className?: string }) {
@@ -101,25 +101,11 @@ export function SettingsDialog() {
           {server?.chat && " 服务端已配置默认模型，不填写也可以直接使用。"}
         </p>
 
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {PROVIDER_PRESETS.map((p) => (
-            <button
-              key={p.name}
-              onClick={() => setDraft((d) => ({ ...d, ...p.settings }))}
-              className={clsx(
-                "rounded-md border px-2.5 py-1 text-xs transition",
-                draft.baseURL === p.settings.baseURL ? "border-accent/60 bg-accent/10 text-fg" : "border-line text-muted hover:border-line-strong",
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
 
         <div className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs text-muted">接口地址（Base URL）</span>
-            <input className={field} value={draft.baseURL} onChange={(e) => set("baseURL", e.target.value)} placeholder="https://.../v1" />
+            <input className={field} value={draft.baseURL} onChange={(e) => set("baseURL", e.target.value)} placeholder="https://your-provider.com/v1" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">API Key</span>
@@ -146,7 +132,7 @@ export function SettingsDialog() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs text-muted">主模型（问答、脉络）</span>
-              <input className={field} value={draft.model} onChange={(e) => set("model", e.target.value)} />
+              <input className={field} value={draft.model} onChange={(e) => set("model", e.target.value)} placeholder="模型名称" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-muted">快速模型（翻译、Agent）</span>
@@ -155,11 +141,11 @@ export function SettingsDialog() {
           </div>
           <label className="block">
             <span className="mb-1 block text-xs text-muted">视觉模型（框选讲解，可选）</span>
-            <input className={field} value={draft.visionModel} onChange={(e) => set("visionModel", e.target.value)} placeholder="如 qwen3-vl-plus，留空则不可用" />
+            <input className={field} value={draft.visionModel} onChange={(e) => set("visionModel", e.target.value)} placeholder="支持图片输入的模型，留空则不可用" />
           </label>
           <label className="flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={draft.disableThinking} onChange={(e) => set("disableThinking", e.target.checked)} />
-            快速模型关闭思考模式（百炼等平台，可明显加快翻译）
+            快速模型关闭思考模式
           </label>
         </div>
 
@@ -188,7 +174,7 @@ export function SettingsDialog() {
             </button>
           )}
           <div className="flex-1" />
-          <button onClick={runTest} disabled={!draft.apiKey.trim() || test.state === "running"} className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-40">
+          <button onClick={runTest} disabled={!draft.baseURL.trim() || !draft.apiKey.trim() || !draft.model.trim() || test.state === "running"} className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-40">
             测试连接
           </button>
           <button

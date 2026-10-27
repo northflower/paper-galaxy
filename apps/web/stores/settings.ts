@@ -12,39 +12,8 @@ export interface LlmSettings {
   disableThinking: boolean;
 }
 
-export const PROVIDER_PRESETS: { name: string; settings: Omit<LlmSettings, "apiKey"> }[] = [
-  {
-    name: "阿里云百炼",
-    settings: {
-      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      model: "deepseek-v4.1-flash",
-      fastModel: "deepseek-v4.1-flash",
-      visionModel: "qwen3-vl-plus",
-      disableThinking: true,
-    },
-  },
-  {
-    name: "DeepSeek",
-    settings: { baseURL: "https://api.deepseek.com/v1", model: "deepseek-chat", fastModel: "deepseek-chat", visionModel: "", disableThinking: false },
-  },
-  {
-    name: "智谱",
-    settings: {
-      baseURL: "https://open.bigmodel.cn/api/paas/v4",
-      model: "glm-4.5-air",
-      fastModel: "glm-4.5-flash",
-      visionModel: "glm-4.5v",
-      disableThinking: false,
-    },
-  },
-  {
-    name: "OpenAI",
-    settings: { baseURL: "https://api.openai.com/v1", model: "gpt-5-mini", fastModel: "gpt-5-nano", visionModel: "gpt-5-mini", disableThinking: false },
-  },
-];
-
 const STORAGE_KEY = "pg-llm-settings";
-const EMPTY: LlmSettings = { ...PROVIDER_PRESETS[0].settings, apiKey: "" };
+const EMPTY: LlmSettings = { baseURL: "", apiKey: "", model: "", fastModel: "", visionModel: "", disableThinking: false };
 
 function load(): LlmSettings {
   if (typeof window === "undefined") return EMPTY;

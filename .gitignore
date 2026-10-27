@@ -10,4 +10,3 @@ dist/
 apps/web/public/pdf.worker.min.mjs
 apps/web/public/models/
 *.tsbuildinfo
-samples/*.pdf

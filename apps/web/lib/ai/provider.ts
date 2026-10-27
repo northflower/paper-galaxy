@@ -2,14 +2,14 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 export class MissingKeyError extends Error {
   constructor() {
-    super("还没有配置模型 API Key：请点击右上角“模型设置”填写，或在服务端 .env.local 中配置 LLM_API_KEY");
+    super("还没有配置模型：请点击右上角“模型设置”填写接口地址、API Key 与模型名称");
   }
 }
 
 export class MissingVisionModelError extends MissingKeyError {
   constructor() {
     super();
-    this.message = "还没有配置视觉模型：请在“模型设置”中填写视觉模型（如 qwen3-vl-plus）后再使用框选讲解";
+    this.message = "还没有配置视觉模型：请在“模型设置”中填写支持图片输入的模型后再使用框选讲解";
   }
 }
 
@@ -20,7 +20,7 @@ export interface LlmConfig {
   model?: string;
   fastModel?: string;
   visionModel?: string;
-  /** 快速档关闭思考模式（百炼等平台的 enable_thinking 参数） */
+  /** 快速档关闭思考模式（在请求体中附加 enable_thinking: false） */
   disableThinking?: boolean;
 }
 
@@ -40,10 +40,8 @@ export function readLlmConfig(req: Request): LlmConfig | undefined {
   }
 }
 
-const DEFAULT_BASE_URL = "https://api.deepseek.com/v1";
-
 /**
- * 统一走 OpenAI 兼容接口，DeepSeek / 通义千问 / 智谱 等只需改配置即可切换。
+ * 统一走 OpenAI 兼容接口，任何兼容服务只需填写接口地址、Key 与模型名即可接入。
  * 优先使用网页中填写的配置；没有填写时使用服务端环境变量。
  * chat：问答、轨迹拆解等需要推理的任务；fast：翻译、检索改写、Agent 等高频任务；vision：图表讲解。
  */
@@ -52,8 +50,9 @@ export function getModel(kind: "chat" | "fast" | "vision" = "chat", user?: LlmCo
   const apiKey = user?.apiKey?.trim() || env.LLM_API_KEY;
   if (!apiKey) throw new MissingKeyError();
   // 网页配置与环境变量不混用，避免把用户的 Key 发到服务端默认的地址
-  const baseURL = (user ? user.baseURL?.trim() : env.LLM_BASE_URL) || DEFAULT_BASE_URL;
-  const chatModel = (user ? user.model?.trim() : env.LLM_MODEL) || "deepseek-chat";
+  const baseURL = user ? user.baseURL?.trim() : env.LLM_BASE_URL?.trim();
+  const chatModel = user ? user.model?.trim() : env.LLM_MODEL?.trim();
+  if (!baseURL || !chatModel) throw new MissingKeyError();
   const fastModel = (user ? user.fastModel?.trim() : env.LLM_FAST_MODEL) || chatModel;
   const visionModel = user ? user.visionModel?.trim() : env.LLM_VISION_MODEL;
 
@@ -62,7 +61,7 @@ export function getModel(kind: "chat" | "fast" | "vision" = "chat", user?: LlmCo
     return createOpenAICompatible({ name: "llm", baseURL, apiKey })(visionModel);
   }
 
-  // 额外请求参数，例如百炼上关闭思考：LLM_FAST_EXTRA_BODY={"enable_thinking":false}
+  // 额外请求参数，例如关闭思考模式：LLM_FAST_EXTRA_BODY={"enable_thinking":false}
   const extra = user
     ? kind === "fast" && user.disableThinking
       ? { enable_thinking: false }

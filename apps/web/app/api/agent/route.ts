@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { jsonSchema, stepCountIs, streamText, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { errorResponse, getModel, readLlmConfig } from "@/lib/ai/provider";
+import { errorResponse, getModel, readLlmConfig, MissingKeyError } from "@/lib/ai/provider";
 import { AGENT_SYSTEM } from "@/lib/ai/prompts";
 import { checkUserInput, clip } from "@/lib/ai/safety";
 
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
         send({ type: "done" });
       } catch (err) {
         console.error("[agent]", err);
-        send({ type: "fatal", message: err instanceof Error && err.message.includes("LLM_API_KEY") ? err.message : "Agent 执行失败，请稍后重试" });
+        send({ type: "fatal", message: err instanceof MissingKeyError ? err.message : "Agent 执行失败，请稍后重试" });
       } finally {
         await client.close().catch(() => {});
         controller.close();

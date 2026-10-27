@@ -2,7 +2,7 @@
   "name": "paper-galaxy",
   "private": true,
   "version": "0.1.0",
-  "description": "论文星图 PaperGalaxy —— 用母语读懂论文的 AI 论文阅读器",
+  "description": "论文星图 PaperGalaxy —— 保留原版排版的 AI 论文阅读器",
   "scripts": {
     "setup": "npm install --prefix apps/web && npm install --prefix packages/scholar-mcp && npm run build --prefix packages/scholar-mcp",
     "dev": "npm run dev --prefix apps/web",
@@ -12,5 +12,20 @@
   },
   "engines": {
     "node": ">=18.18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "paper-reader",
+    "pdf",
+    "translation",
+    "llm",
+    "rag",
+    "agent",
+    "mcp",
+    "nextjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<your-username>/paper-galaxy.git"
   }
 }
