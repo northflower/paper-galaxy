@@ -13,7 +13,7 @@ interface Star {
 
 /**
  * 全局星空背景：Canvas 2D 绘制带视差与闪烁的星点 + 星云光晕。
- * 页面不可见时暂停动画，尊重“减少动态效果”系统设置。
+ * 页面不可见时暂停，回到前台继续。
  */
 export function Starfield() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,7 +23,6 @@ export function Starfield() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let stars: Star[] = [];
     let raf = 0;
     let w = 0;
@@ -54,17 +53,17 @@ export function Starfield() {
       ctx.clearRect(0, 0, w, h);
       for (const s of stars) {
         // 近处的星（z 大）视差更明显、缓慢漂移
-        const drift = reduced ? 0 : t * 0.004 * (0.2 + s.z);
+        const drift = t * 0.004 * (0.2 + s.z);
         const x = (s.x + drift + pointer.x * s.z * 18 + w) % w;
         const y = s.y + pointer.y * s.z * 18;
-        const twinkle = reduced ? 1 : 0.55 + 0.45 * Math.sin(t * 0.0015 + s.phase);
+        const twinkle = 0.55 + 0.45 * Math.sin(t * 0.0015 + s.phase);
         const alpha = (0.15 + s.z * 0.55) * twinkle;
         ctx.beginPath();
         ctx.fillStyle = `hsla(${s.hue}, 60%, 88%, ${alpha})`;
         ctx.arc(x, y, s.r * (0.6 + s.z), 0, Math.PI * 2);
         ctx.fill();
       }
-      if (!reduced) raf = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(draw);
     };
 
     const onMove = (e: PointerEvent) => {

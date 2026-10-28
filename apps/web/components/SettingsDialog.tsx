@@ -22,7 +22,7 @@ export function SettingsButton({ className }: { className?: string }) {
       className={clsx("relative rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-fg", className)}
     >
       <Settings2 className="h-4 w-4" />
-      {missing && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />}
+      {missing && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-400" />}
     </button>
   );
 }

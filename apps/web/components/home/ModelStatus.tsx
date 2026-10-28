@@ -74,9 +74,7 @@ function Pill(props: {
   return (
     <div className="mb-4 flex justify-center">
       <div className="glass flex max-w-full items-center gap-2.5 rounded-full py-1.5 pl-3.5 pr-1.5 text-xs shadow-[0_12px_40px_-16px_rgba(0,0,0,0.8)]">
-        <span className={clsx("ripple relative flex h-2 w-2 shrink-0", t.ring)}>
-          <span className={clsx("h-2 w-2 rounded-full", t.dot)} />
-        </span>
+        <span className={clsx("relative flex h-2 w-2 shrink-0 rounded-full", t.dot)} />
         <span className={clsx("shrink-0", t.text)}>{props.label}</span>
         {props.detail && (
           <>
@@ -101,8 +99,7 @@ function ConnectCard({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="aurora-border mb-4 rounded-2xl">
       <div className="flex flex-col gap-4 rounded-2xl bg-[#0a0c12]/90 px-5 py-4 backdrop-blur-xl sm:flex-row sm:items-center sm:px-6">
-        {/* 一颗还没被“点亮”的星，涟漪表示正在等待连接 */}
-        <div className="ripple relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent/40">
+        <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent/40">
           <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_40%,rgba(163,177,255,0.28),transparent_70%)]">
             <Sparkles className="h-5 w-5 text-accent" />
           </span>

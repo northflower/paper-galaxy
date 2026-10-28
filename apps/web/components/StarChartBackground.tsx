@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createNebulaLayer } from "./nebulaLayer";
 
 /**
@@ -13,19 +13,26 @@ import { createNebulaLayer } from "./nebulaLayer";
  */
 export function StarChartBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     // 不透明画布 + 加色混合：粒子越密越亮，透明度不会在页面合成时被二次衰减
     const gl = canvas?.getContext("webgl2", { alpha: false, antialias: true });
-    if (!canvas || !gl) return;
-
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!canvas || !gl) {
+      setFailed(true);
+      return;
+    }
     const mobile = window.innerWidth < 768;
 
     const points = createProgram(gl, POINT_VS, POINT_FS);
     const lines = createProgram(gl, LINE_VS, LINE_FS);
-    if (!points || !lines) return;
+    if (!points || !lines) {
+      if (points) gl.deleteProgram(points);
+      if (lines) gl.deleteProgram(lines);
+      setFailed(true);
+      return;
+    }
 
     const { data, count, stars } = buildScene(mobile ? 0.45 : 1);
     const nebula = createNebulaLayer(gl, createProgram, mobile ? 26000 : 72000);
@@ -126,7 +133,7 @@ export function StarChartBackground() {
 
     let raf = 0;
     const frame = () => {
-      const t = reduced ? 40 : performance.now() / 1000 - start + 40;
+      const t = performance.now() / 1000 - start + 40;
       const m = s.mouse;
       m.x += (m.tx - m.x) * 0.1;
       m.y += (m.ty - m.y) * 0.1;
@@ -203,7 +210,7 @@ export function StarChartBackground() {
       gl.uniform3f(U.ripple, s.ripple.x, s.ripple.y, s.ripple.t + 40);
       gl.drawArrays(gl.POINTS, 0, count);
 
-      if (!reduced) raf = requestAnimationFrame(frame);
+      raf = requestAnimationFrame(frame);
     };
     const onVisibility = () => {
       cancelAnimationFrame(raf);
@@ -238,7 +245,7 @@ export function StarChartBackground() {
   }, []);
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#040509]">
+    <div aria-hidden className={failed ? "hidden" : "pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#040509]"}>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {/* 暗角与标题区压暗，保证前景文字清晰 */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_55%,transparent_45%,rgba(2,3,7,0.7)_100%)]" />
