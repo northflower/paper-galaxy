@@ -1,0 +1,14 @@
+# 免费托管的在线实例空闲后会休眠，定时访问一次，保持在线演示随时可用
+name: Keep demo awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping demo
+        run: curl -fsS -o /dev/null --max-time 120 --retry 2 https://paper-galaxy.onrender.com/ || true

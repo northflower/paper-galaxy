@@ -9,6 +9,7 @@
 </p>
 
 <p>
+  <a href="https://github.com/northflower/paper-galaxy/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/northflower/paper-galaxy/ci.yml?branch=main&label=CI&style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7c8cff?style=flat-square"></a>
   <img alt="Next.js 15" src="https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=nextdotjs">
   <img alt="React 19" src="https://img.shields.io/badge/React-19-149eca?style=flat-square&logo=react&logoColor=white">
@@ -127,6 +128,23 @@ npm run setup
 ```
 
 `npm run setup` 会安装 Web 应用和 MCP 服务器的依赖，并构建 MCP 服务器，首次运行约需 1–3 分钟。
+
+<details>
+<summary><b>依赖与环境说明</b></summary>
+
+<br/>
+
+| 文件 | 作用 |
+|---|---|
+| `package.json` | 根目录脚本：`setup`、`dev`、`build`、`start`、`lint`、`typecheck` |
+| `apps/web/package.json`、`apps/web/package-lock.json` | Web 应用依赖清单与锁定版本 |
+| `packages/scholar-mcp/package.json`、`package-lock.json` | MCP 服务器依赖清单与锁定版本 |
+| `.nvmrc` | 推荐的 Node.js 版本（20），可配合 nvm / fnm 使用 |
+| `apps/web/.env.example` | 服务端环境变量模板（全部可选，见[部署](#-部署)一节） |
+
+正常使用不需要任何环境变量，模型在网页中配置即可。
+
+</details>
 
 ### 3. 启动
 
@@ -359,6 +377,10 @@ cp apps/web/.env.example apps/web/.env.local   # 填写后重启
 - [ ] 学习模式：根据论文生成理解检测题与复习卡片
 - [ ] 问答评测集，量化检索召回率与回答忠实度
 - [ ] 多人共享批注与论文库
+
+## 👥 团队
+
+论文星图由 [@northflower](https://github.com/northflower) 开发与维护。欢迎通过 [Issues](https://github.com/northflower/paper-galaxy/issues) 反馈问题和建议。
 
 ## 🤝 参与贡献
 

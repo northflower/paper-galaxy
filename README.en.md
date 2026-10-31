@@ -9,6 +9,7 @@
 </p>
 
 <p>
+  <a href="https://github.com/northflower/paper-galaxy/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/northflower/paper-galaxy/ci.yml?branch=main&label=CI&style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7c8cff?style=flat-square"></a>
   <img alt="Next.js 15" src="https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=nextdotjs">
   <img alt="React 19" src="https://img.shields.io/badge/React-19-149eca?style=flat-square&logo=react&logoColor=white">
@@ -129,6 +130,23 @@ npm run setup
 ```
 
 `npm run setup` installs dependencies for the web app and the MCP server and builds the MCP server. The first run takes 1–3 minutes.
+
+<details>
+<summary><b>Dependencies &amp; environment</b></summary>
+
+<br/>
+
+| File | Purpose |
+|---|---|
+| `package.json` | Root scripts: `setup`, `dev`, `build`, `start`, `lint`, `typecheck` |
+| `apps/web/package.json`, `apps/web/package-lock.json` | Web app dependencies and locked versions |
+| `packages/scholar-mcp/package.json`, `package-lock.json` | MCP server dependencies and locked versions |
+| `.nvmrc` | Recommended Node.js version (20), for nvm / fnm |
+| `apps/web/.env.example` | Server environment template (all optional, see [Deployment](#-deployment)) |
+
+No environment variables are needed for normal use — configure your model in the browser.
+
+</details>
 
 ### 3. Run
 
@@ -361,6 +379,10 @@ cp apps/web/.env.example apps/web/.env.local   # then restart
 - [ ] Study mode: comprehension questions and review cards
 - [ ] Q&amp;A evaluation set for retrieval recall and answer faithfulness
 - [ ] Shared annotations and libraries
+
+## 👥 Team
+
+PaperGalaxy is built and maintained by [@northflower](https://github.com/northflower). Feedback and ideas are welcome in [Issues](https://github.com/northflower/paper-galaxy/issues).
 
 ## 🤝 Contributing
 

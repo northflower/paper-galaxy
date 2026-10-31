@@ -26,11 +26,11 @@ npm run dev
 ## 提交代码
 
 1. Fork 本仓库，基于 `main` 新建分支，例如 `fix/pdf-columns`。
-2. 提交前确保检查通过：
+2. 提交前确保检查通过（CI 会在每次推送和 PR 时自动执行同样的检查）：
 
    ```bash
-   npm run lint
-   npx tsc --noEmit -p apps/web
+   npm run check        # ESLint + TypeScript 类型检查
+   npm run build        # 确认可以正常构建
    ```
 
 3. 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)，例如 `fix(web): 修复单栏论文被误判为双栏`。

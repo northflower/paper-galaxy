@@ -8,7 +8,9 @@
     "dev": "npm run dev --prefix apps/web",
     "build": "npm run build --prefix packages/scholar-mcp && npm run build --prefix apps/web",
     "lint": "npm run lint --prefix apps/web",
-    "start": "npm run start --prefix apps/web"
+    "start": "npm run start --prefix apps/web",
+    "typecheck": "npm run typecheck --prefix apps/web",
+    "check": "npm run lint && npm run typecheck"
   },
   "engines": {
     "node": ">=18.18"
